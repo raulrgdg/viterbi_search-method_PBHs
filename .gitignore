@@ -2,11 +2,10 @@
 __pycache__/
 *.pyc
 
-outputs/data/
-outputs/logs/
-outputs/plots/
-outputs/reports/*.csv
-outputs/reports/*.png
+outputs/data/*
+outputs/logs/*
+outputs/plots/*
+outputs/reports/*
 !outputs/data/.gitkeep
 !outputs/logs/.gitkeep
 !outputs/plots/.gitkeep
