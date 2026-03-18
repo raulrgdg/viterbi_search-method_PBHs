@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pipeline Scientific Cleanup"
+  short_description: "Rigurosa limpieza y organización de pipelines HTCondor"
+  default_prompt: "Audita y organiza este pipeline científico en dos fases: limpieza rigurosa y reestructuración sin romper compatibilidad."

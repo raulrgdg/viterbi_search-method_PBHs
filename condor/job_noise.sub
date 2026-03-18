@@ -1,0 +1,21 @@
+# Condor entrypoint for noise generation:
+# job_noise.sub -> ../bin/run_noise.sh -> src/noise-track_new-map-data_generation.py
+executable = ../bin/run_noise.sh
+
+n_jobs=108
+arguments = $(n_jobs) $(Process)
+
+log = ../outputs/logs/noise_generation.$(ClusterId).log
+output = ../outputs/logs/noise_generation.$(ClusterId).$(Process).out
+error = ../outputs/logs/noise_generation.$(ClusterId).$(Process).err
+
+request_cpus = 16
+request_memory = 8GB
+request_disk = 8GB
+
+accounting_group = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = raul.rodriguez
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue $(n_jobs)
