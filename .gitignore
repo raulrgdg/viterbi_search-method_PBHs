@@ -7,3 +7,7 @@ outputs/logs/
 outputs/plots/
 outputs/reports/*.csv
 outputs/reports/*.png
+!outputs/data/.gitkeep
+!outputs/logs/.gitkeep
+!outputs/plots/.gitkeep
+!outputs/reports/.gitkeep
