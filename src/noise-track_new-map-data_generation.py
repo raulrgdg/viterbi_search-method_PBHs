@@ -264,8 +264,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Noise data generation repartido en jobs Condor."
     )
-    parser.add_argument("--n-jobs", type=int, default=None)
-    parser.add_argument("--job-id", type=int, default=None)
+    parser.add_argument("--n-jobs", type=int, default=DEFAULT_N_JOBS)
+    parser.add_argument("--job-id", type=int, default=DEFAULT_JOB_ID)
     return parser.parse_args()
 
 

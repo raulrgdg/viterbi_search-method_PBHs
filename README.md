@@ -87,7 +87,7 @@ Direct shell wrappers:
 ```bash
 bash bin/run_signal.sh 341 0
 bash bin/run_noise.sh 108 0
-bash bin/run_search.sh
+bash bin/run_search.sh 1 0
 ```
 
 Auxiliary general search:
@@ -96,7 +96,14 @@ Auxiliary general search:
 python3 src/general_search.py
 ```
 
+Mass-window helper for shared `t_to_merger` values inside a GW band:
+
+```bash
+python3 src/tmerger_mass_windows.py --mchirp-min 1e-4 --mchirp-max 1e-1 --flow 61 --fhigh 126.8 --max-frequency-at-t-to-merger 100 --min-t-to-merger 32780
+```
+
 ## Notes
 
 - The code assumes the scientific runtime dependencies from the `vit` environment are available.
 - `src/general_search.py` is an auxiliary entrypoint; the main Condor search chain still uses `src/search_candidate.py`.
+- `src/search_candidate.py` now follows the same partitioning pattern as signal/noise: Condor passes `n_jobs` and `job_id`, and each job writes its own CSV shard when `n_jobs > 1`.

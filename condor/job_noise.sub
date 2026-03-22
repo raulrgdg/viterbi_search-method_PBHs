@@ -2,7 +2,7 @@
 # job_noise.sub -> ../bin/run_noise.sh -> src/noise-track_new-map-data_generation.py
 executable = ../bin/run_noise.sh
 
-n_jobs=108
+n_jobs=5
 arguments = $(n_jobs) $(Process)
 
 log = ../outputs/logs/noise_generation.$(ClusterId).log

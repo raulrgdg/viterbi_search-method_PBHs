@@ -8,7 +8,7 @@ from power_metric_prueba import search_candidates
 
 # ----------------------------- User configuration -----------------------------
 PACK_RANGE = range(1, 109)
-MCHIRP_GRID = [1e-04, 5e-04, 8e-04, 1e-03, 2e-03, 3e-03, 4e-03, 5e-03, 6e-03, 7e-03, 8e-03, 9e-03, 1e-02, 2e-02, 3e-02, 4e-02, 5e-02, 6e-02, 7e-02, 8e-02, 9e-02, 1e-01]
+MCHIRP_GRID = [1e-03, 2e-03, 3e-03, 4e-03, 5e-03, 6e-03, 7e-03, 8e-03, 9e-03, 1e-02, 2e-02, 3e-02, 4e-02, 5e-02, 6e-02, 7e-02, 8e-02, 9e-02, 1e-01] #1e-04, 5e-04, 8e-04, 
 DISTANCE_GRID = np.concatenate([np.array([0.001]), np.arange(0.005, 0.155, 0.005)])
 SIGNAL_PACK = 3
 TSFT_LIST = [2, 3, 4, 5, 6, 9, 12, 15, 21, 29, 39, 54, 74, 101, 132, 181, 248, 340]
@@ -71,6 +71,7 @@ def _append_noise_rows(rows, rng):
                 "nmse": nmse_eval if nmse_eval is not None else "",
                 "nsigma": opt_nsigma if opt_nsigma is not None else "",
                 "mass": final_mass,
+                "injected": False,
             }
         )
 
@@ -98,6 +99,7 @@ def _append_signal_rows(rows, rng):
                 "nmse": nmse_eval if nmse_eval is not None else "",
                 "nsigma": opt_nsigma if opt_nsigma is not None else "",
                 "mass": final_mass,
+                "injected": True,
             }
         )
 
@@ -112,7 +114,7 @@ def main():
 
     output_csv = REPORTS_DIR / "general_search_results.csv"
     with output_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["candidate", "nmse", "nsigma", "mass"])
+        writer = csv.DictWriter(f, fieldnames=["candidate", "nmse", "nsigma", "mass", "injected"])
         writer.writeheader()
         writer.writerows(rows)
 

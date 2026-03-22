@@ -31,7 +31,17 @@ MCHIRP_GRID = [1e-04, 5e-04, 8e-04, 1e-03, 2e-03, 3e-03, 4e-03, 5e-03, 6e-03, 7e
 DISTANCE_GRID = np.concatenate([np.array([0.001]), np.arange(0.005, 0.155, 0.005)])
 
 # Parametros fijos de la inyeccion y analisis.
-T_TO_MERG = 32780
+DEFAULT_T_TO_MERG = 32780
+# Rango de masas cubierto por tiempos a coalescencia mas largos para que la senal
+# atraviese una fraccion util de la banda 61.1-126.8 Hz.
+T_TO_MERG_BY_MCHIRP = [
+    (1.0000000000000000e-04, 2.2053231801153470e-04, 1.3939520546672462e07),
+    (2.2053234006476653e-04, 4.8634508413599280e-04, 3.7307317803086136e06),
+    (4.8634513277050120e-04, 1.0725482012884173e-03, 9.9848193808004100e05),
+    (1.0725483085432376e-03, 2.3653157626732702e-03, 2.6723073068630840e05),
+    (2.3653159992048467e-03, 5.2162864185682700e-03, 7.1520831350329030e04),
+    (5.2162869401969120e-03, 8.3302027440089410e-03, 3.2780000000000000e04),
+]
 RA = 1.7
 DEC = 1.7
 POL = 0.2
@@ -75,6 +85,13 @@ def build_signal_grid(mchirp_grid, distance_grid):
         for distance in distance_grid:
             grid.append((m1, m2, distance))
     return grid
+
+
+def get_t_to_merger_for_mchirp(mchirp):
+    for mchirp_min, mchirp_max, t_to_merger in T_TO_MERG_BY_MCHIRP:
+        if mchirp_min <= mchirp <= mchirp_max:
+            return t_to_merger
+    return DEFAULT_T_TO_MERG
 
 
 def load_raw_existing_data(raw_data_dir, t_start):
@@ -168,18 +185,18 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
     m1, m2, distance = signal_params
     mchirp = mchirp_from_mass1_mass2(m1, m2)
     distance_str = f"{distance:.3f}".replace(".", "_")
-    coal_time = t_start + T_TO_MERG
-
+    t_to_merger = get_t_to_merger_for_mchirp(mchirp)
     print(
-        f"Iniciando senal: m1={m1:.6g}, m2={m2:.6g}, dL={distance:.3f} Mpc, mchirp={mchirp:.6g}",
+        f"Iniciando senal: m1={m1:.6g}, m2={m2:.6g}, dL={distance:.3f} Mpc, "
+        f"mchirp={mchirp:.6g}, t_to_merger={t_to_merger:.6g}",
         flush=True,
     )
 
-    inject_signal_into_real_data(
+    coal_time = inject_signal_into_real_data(
         m1=m1,
         m2=m2,
         distance=distance,
-        t_to_merg=T_TO_MERG,
+        t_to_merg=t_to_merger,
         ra=RA,
         dec=DEC,
         pol=POL,

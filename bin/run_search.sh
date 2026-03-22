@@ -10,4 +10,6 @@ conda activate vit
 
 # Preserve the repo-relative import/layout assumptions used by the Python entrypoint.
 cd "${PROJECT_ROOT}"
-python3 -u src/search_candidate.py
+python3 -u src/search_candidate.py \
+    --n-jobs "$1" \
+    --job-id "$2"

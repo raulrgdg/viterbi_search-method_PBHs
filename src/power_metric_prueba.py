@@ -15,6 +15,8 @@ DEBUG = False
 SIGNIFICANT_BLOCK_Z_THRESHOLD = 7.6869 # 90% percentil
 TOP_N_BLOCKS = 2
 POWER_THRESHOLD_K = 0.5
+LINEAR_THRESHOLD_SLOPE = 255.5
+LINEAR_THRESHOLD_INTERCEPT = -0.671286
 
 
 def build_index_track_path(tsft, pack, noise, mchirp=None, distance_str=None):
@@ -483,13 +485,18 @@ def _write_candidate_report(
         f"Chirp Mass: {mass_eval}",
         f"NMSE_raw: {nmse_raw_eval}",
         f"NMSE_penalized: {nmse_eval}",
-        f"NMSE_th_used: {nmse_candidate_th}",
+        f"Threshold_used: {nmse_candidate_th}",
     ]
 
     with open(output_txt, "a") as f:
         f.write(header)
         for line in report_lines[1:]:
             f.write(f"{line}\n")
+
+
+def _candidate_threshold_nsigma(nmse_eval):
+    """Return the nsigma threshold from the calibrated line."""
+    return LINEAR_THRESHOLD_SLOPE * nmse_eval + LINEAR_THRESHOLD_INTERCEPT
 
 def search_candidates(mchirp, distance, tsft_list, pack, noise):
     nmse_eval = None
@@ -633,11 +640,12 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
 
     print(
         f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, "
-        f"th_fixed={nmse_candidate_th:.6e}, "
+        f"nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, "
         f"n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}"
     )
 
-    candidate_passed = (nmse_eval < nmse_candidate_th and opt_nsigma > 0.001)
+    nsigma_candidate_th = _candidate_threshold_nsigma(nmse_eval)
+    candidate_passed = opt_nsigma >= nsigma_candidate_th
     _write_candidate_report(
         output_txt=output_txt,
         is_noise=noise,
@@ -651,17 +659,19 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
         mass_eval=mass_eval,
         nmse_raw_eval=nmse_raw_eval,
         nmse_eval=nmse_eval,
-        nmse_candidate_th=nmse_candidate_th,
+        nmse_candidate_th=nsigma_candidate_th,
     )
     if candidate_passed:
         print(
-            f"El bloque extendido cumple NMSE penalizado < umbral fijo ({nmse_candidate_th:.2e}) "
-            f"y relación señal/ruido > 0.001. Se ha guardado como candidato válido en {output_txt}."
+            "El bloque extendido cumple el umbral lineal "
+            f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
+            f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}."
         )
     else:
         print(
-            f"El bloque extendido no cumple NMSE penalizado < umbral fijo ({nmse_candidate_th:.2e}) "
-            "y relación señal/ruido > 0.001. No se considera un candidato válido."
+            "El bloque extendido no cumple el umbral lineal "
+            f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
+            f"(nsigma_th={nsigma_candidate_th:.6e}). No se considera un candidato válido."
         )
         return None, nmse_eval, opt_nsigma, extended_optimal_block
     return True, nmse_eval, opt_nsigma, extended_optimal_block
@@ -834,11 +844,12 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
 
     print(
         f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, "
-        f"th_fixed={nmse_candidate_th:.6e}, "
+        f"nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, "
         f"n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}"
     )
 
-    candidate_passed = (nmse_eval < nmse_candidate_th and opt_nsigma > 0.001)
+    nsigma_candidate_th = _candidate_threshold_nsigma(nmse_eval)
+    candidate_passed = opt_nsigma >= nsigma_candidate_th
     _write_candidate_report(
         output_txt=output_txt,
         is_noise=noise,
@@ -852,17 +863,19 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
         mass_eval=mass_eval,
         nmse_raw_eval=nmse_raw_eval,
         nmse_eval=nmse_eval,
-        nmse_candidate_th=nmse_candidate_th,
+        nmse_candidate_th=nsigma_candidate_th,
     )
     if candidate_passed:
         print(
-            f"El bloque extendido cumple NMSE penalizado < umbral fijo ({nmse_candidate_th:.2e}) "
-            f"y relación señal/ruido > 0.001. Se ha guardado como candidato válido en {output_txt}."
+            "El bloque extendido cumple el umbral lineal "
+            f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
+            f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}."
         )
     else:
         print(
-            f"El bloque extendido no cumple NMSE penalizado < umbral fijo ({nmse_candidate_th:.2e}) "
-            "y relación señal/ruido > 0.001. No se considera un candidato válido."
+            "El bloque extendido no cumple el umbral lineal "
+            f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
+            f"(nsigma_th={nsigma_candidate_th:.6e}). No se considera un candidato válido."
         )
         return None, nmse_eval, opt_nsigma, extended_optimal_block
     return True, nmse_eval, opt_nsigma, extended_optimal_block

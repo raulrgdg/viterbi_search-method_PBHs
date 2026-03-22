@@ -3,6 +3,7 @@ import os
 
 def generate_framecache(input_dir, mchirp, distance, det, num_frames, frame_length, t_start, coal_time):
     """Create a framecache file for injected strain frames."""
+    coal_time = int(coal_time)
     framecache_path = os.path.join(input_dir, f"framecache_inject_data_mc-{mchirp:.0e}_dl-{distance:.3f}")
 
     with open(framecache_path, "w+") as f:
@@ -31,4 +32,3 @@ def generate_framecache_raw_strain(input_dir, det, num_frames, frame_length, t_s
 
     print("Done: make framecache.")
     return framecache_path
-
