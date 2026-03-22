@@ -742,8 +742,9 @@ def expansion_block(
 if __name__ == "__main__":
     path_track = str(
         Path(__file__).resolve().parents[1]
-        / "outputs"
+        / "inputs"
         / "data"
+        / "pack-3"
         / "tracks-frequencies_remote"
         / "signal"
         / "track-freqs_Tsft-16_pack-3_mc-1e-02_dl-0_110.txt"

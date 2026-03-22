@@ -34,7 +34,7 @@ def _load_existing_data(input_gwf_files, channel_name, t_start, num_frames, fram
 def inject_signal_into_real_data(
     m1, m2, distance, t_to_merg , ra, dec, pol, inc,
     ifo, t_start, num_frames, frame_length, data_dir,
-    input_dir, channel_name, existing_data=None):
+    input_dir, channel_name, existing_data=None, verbose=True):
     """Inject a synthetic signal into raw strain frames and write new frame files."""
     if existing_data is None:
         os.makedirs(input_dir, exist_ok=True)
@@ -58,7 +58,8 @@ def inject_signal_into_real_data(
         m1=m1, m2=m2, distance=distance, inclination=inc,
         sampling_rate=1 / existing_data[0].delta_t, coal_time=coal_time
     )
-    print('GW generated.')
+    if verbose:
+        print('GW generated.')
 
     mchirp = mchirp_from_mass1_mass2(m1, m2)
     distance_str = f"{distance:.3f}".replace(".", "_")
@@ -83,6 +84,7 @@ def inject_signal_into_real_data(
         )
         frame.write_frame(output_file, channel_name, injected_strain)
 
-    print("Injection Done!")
+    if verbose:
+        print("Injection Done!")
 
     return coal_time

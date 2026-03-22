@@ -4,11 +4,8 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 from fit_per_window_prueba_new_recorte_v2 import fit_slope_candidate_blocks, expansion_block, fit_slope_candidate_significant__blocks
-from pipeline_paths import OUTPUTS_DATA_DIR, OUTPUTS_PLOTS_DIR, OUTPUTS_REPORTS_DIR, ensure_dir
+from pipeline_paths import OUTPUTS_PLOTS_DIR, OUTPUTS_REPORTS_DIR, ensure_dir, get_pack_product_dir
 
-TRACK_INDEX_DIR = OUTPUTS_DATA_DIR / "track-index_remote"
-TRACK_FREQ_DIR = OUTPUTS_DATA_DIR / "tracks-frequencies_remote"
-POWER_DIR = OUTPUTS_DATA_DIR / "Chuster-powers_remote"
 PLOTS_CANDIDATE_DIR = ensure_dir(OUTPUTS_PLOTS_DIR / "plots-candidate")
 REPORTS_DIR = ensure_dir(OUTPUTS_REPORTS_DIR)
 DEBUG = False
@@ -21,33 +18,33 @@ LINEAR_THRESHOLD_INTERCEPT = -0.671286
 
 def build_index_track_path(tsft, pack, noise, mchirp=None, distance_str=None):
     """Build the index-track path for signal or noise mode."""
+    track_index_dir = get_pack_product_dir(pack, "track-index_remote", "noise" if noise else "signal")
     if noise:
-        return TRACK_INDEX_DIR / "noise" / f"index-vit_Tsft-{tsft}_pack-{pack}.txt"
+        return track_index_dir / f"index-vit_Tsft-{tsft}_pack-{pack}.txt"
     return (
-        TRACK_INDEX_DIR
-        / "signal"
+        track_index_dir
         / f"index-vit_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.txt"
     )
 
 
 def build_power_path(tsft, pack, noise, mchirp=None, distance_str=None):
     """Build the spectrogram-power path for signal or noise mode."""
+    power_dir = get_pack_product_dir(pack, "Chuster-powers_remote", "noise" if noise else "signal")
     if noise:
-        return POWER_DIR / "noise" / f"power_Tsft-{tsft}_pack-{pack}.npy"
+        return power_dir / f"power_Tsft-{tsft}_pack-{pack}.npy"
     return (
-        POWER_DIR
-        / "signal"
+        power_dir
         / f"power_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.npy"
     )
 
 
 def build_freq_track_path(tsft, pack, noise, mchirp=None, distance_str=None):
     """Build the frequency-track path for signal or noise mode."""
+    track_freq_dir = get_pack_product_dir(pack, "tracks-frequencies_remote", "noise" if noise else "signal")
     if noise:
-        return TRACK_FREQ_DIR / "noise" / f"track-freqs_Tsft-{tsft}_pack-{pack}.txt"
+        return track_freq_dir / f"track-freqs_Tsft-{tsft}_pack-{pack}.txt"
     return (
-        TRACK_FREQ_DIR
-        / "signal"
+        track_freq_dir
         / f"track-freqs_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.txt"
     )
 

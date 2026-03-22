@@ -13,6 +13,7 @@ fmin=${fmin}                  # Minimum frequency
 windowtype=${windowtype}      # Window type for SFTs
 channel_name=${channel_name}  # Channel name
 remainder_mode=${remainder_mode:-strict}  # strict | trim
+sft_verbose=${sft_verbose:-0}
 
 # Ensure output directory exists
 mkdir -p "$SFTPATH"
@@ -75,8 +76,10 @@ if (( workers > cpu_count )); then workers=$cpu_count; fi
 if (( workers > full_sfts )); then workers=$full_sfts; fi
 if (( workers < 1 )); then workers=1; fi
 
-echo "duration=${duration}s, Tseg=${Tseg}s, full_sfts=${full_sfts}, remainder=${remainder}s"
-echo "requested_threads=${num_threads}, cpu_count=${cpu_count}, workers=${workers}"
+if [[ "$sft_verbose" == "1" ]]; then
+    echo "duration=${duration}s, Tseg=${Tseg}s, full_sfts=${full_sfts}, remainder=${remainder}s"
+    echo "requested_threads=${num_threads}, cpu_count=${cpu_count}, workers=${workers}"
+fi
 
 # -------------------- SPLIT WORK BY SFT COUNT --------------------
 # Distribute the integer number of full SFT segments as evenly as possible.
@@ -99,12 +102,20 @@ for ((i=0; i<workers; i++)); do
     gps_start=$current_start
     gps_end=$((gps_start + chunk_duration))
 
-    echo "Worker ${i}: ${seg_count} SFTs | GPS start=${gps_start}, end=${gps_end}"
+    if [[ "$sft_verbose" == "1" ]]; then
+        echo "Worker ${i}: ${seg_count} SFTs | GPS start=${gps_start}, end=${gps_end}"
+    fi
 
     # -f is high-pass freq; -F is SFT start freq for correct frequency axis alignment.
-    lalpulsar_MakeSFTs -f "$fmin" -t "$Tseg" -p "$SFTPATH" -C "$framecache" \
-        -s "$gps_start" -e "$gps_end" -O 0 -N "$channel_name" \
-        -w "$windowtype" -F "$fmin" -B "$Band" -X MSFT &
+    if [[ "$sft_verbose" == "1" ]]; then
+        lalpulsar_MakeSFTs -f "$fmin" -t "$Tseg" -p "$SFTPATH" -C "$framecache" \
+            -s "$gps_start" -e "$gps_end" -O 0 -N "$channel_name" \
+            -w "$windowtype" -F "$fmin" -B "$Band" -X MSFT &
+    else
+        lalpulsar_MakeSFTs -f "$fmin" -t "$Tseg" -p "$SFTPATH" -C "$framecache" \
+            -s "$gps_start" -e "$gps_end" -O 0 -N "$channel_name" \
+            -w "$windowtype" -F "$fmin" -B "$Band" -X MSFT >/dev/null &
+    fi
 
     current_start=$gps_end
 done
@@ -112,8 +123,10 @@ done
 wait
 
 effective_end=$((t_start + full_sfts * Tseg))
-if (( remainder != 0 )) && [[ "$remainder_mode" == "trim" ]]; then
-    echo "Completed with trim: processed [$t_start, $effective_end), dropped [$effective_end, $t_end)."
-else
-    echo "Parallel SFT processing completed: processed [$t_start, $effective_end)."
+if [[ "$sft_verbose" == "1" ]]; then
+    if (( remainder != 0 )) && [[ "$remainder_mode" == "trim" ]]; then
+        echo "Completed with trim: processed [$t_start, $effective_end), dropped [$effective_end, $t_end)."
+    else
+        echo "Parallel SFT processing completed: processed [$t_start, $effective_end)."
+    fi
 fi

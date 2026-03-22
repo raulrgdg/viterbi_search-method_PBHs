@@ -62,11 +62,12 @@ def download_o3_real_data(
                     ) from exc
 
                 wait_s = retry_wait_seconds * attempt
-                print(
-                    f"Descarga fallida para [{seg_start}, {seg_end}) "
-                    f"(intento {attempt}/{retry_attempts + 1}): {exc}. "
-                    f"Reintentando en {wait_s}s..."
-                )
+                if verbose:
+                    print(
+                        f"Descarga fallida para [{seg_start}, {seg_end}) "
+                        f"(intento {attempt}/{retry_attempts + 1}): {exc}. "
+                        f"Reintentando en {wait_s}s..."
+                    )
                 time.sleep(wait_s)
 
         if ts is None:
@@ -90,6 +91,7 @@ def download_o3_real_data(
         )
         pycbc_frame.write_frame(output_file, channel_name, pycbc_ts)
         generated_files.append(output_file)
-        print(f"Real data descargada y guardada: {output_file}")
+        if verbose:
+            print(f"Real data descargada y guardada: {output_file}")
 
     return generated_files

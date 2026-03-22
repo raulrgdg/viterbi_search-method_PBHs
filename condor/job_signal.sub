@@ -3,7 +3,8 @@
 executable = ../bin/run_signal.sh
 
 n_jobs=341
-arguments = $(n_jobs) $(Process)
+pack=3
+arguments = $(n_jobs) $(Process) $(pack)
 
 log = ../outputs/logs/signal_generation.$(ClusterId).log
 output = ../outputs/logs/signal_generation.$(ClusterId).$(Process).out

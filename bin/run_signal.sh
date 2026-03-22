@@ -12,4 +12,5 @@ conda activate vit
 cd "${PROJECT_ROOT}"
 python3 -u src/data_generation-new_pipeline.py \
     --n-jobs "$1" \
-    --job-id "$2"
+    --job-id "$2" \
+    --pack "${3:-3}"

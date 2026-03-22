@@ -12,7 +12,8 @@ def run_make_sfts_script(
     fmin,
     Band,
     windowtype,
-    channel):
+    channel,
+    verbose=False):
     """
     Ejecuta un script bash para generar SFTs paralelamente usando lalpulsar_MakeSFTs.
     """
@@ -30,11 +31,13 @@ def run_make_sfts_script(
         "fmin": str(fmin),
         "windowtype": windowtype,
         "channel_name": channel,
+        "sft_verbose": "1" if verbose else "0",
     })
 
     try:
         subprocess.run(["bash", bash_script_path], env=env_vars, check=True)
-        print("SFT generation completed successfully.", flush=True)
+        if verbose:
+            print("SFT generation completed successfully.", flush=True)
     except subprocess.CalledProcessError as exc:
         print(f"Error during SFT generation: {exc}", flush=True)
         raise

@@ -1,18 +1,19 @@
 import argparse
 import os
 import tempfile
+import time
 
 import numpy as np
 from pycbc import frame as pycbc_frame
 from pycbc.pnutils import mchirp_q_to_mass1_mass2
 from pycbc.conversions import mchirp_from_mass1_mass2
 
-from algortihm_final import load_sfts, preprocess_data, remap_CShuster_to_fm83, run_viterbi
+from algortihm_final import build_remap_geometry, load_sfts, preprocess_data, remap_CShuster_to_fm83, run_viterbi
 from download_O3_data import download_o3_real_data
 from injection_final import inject_signal_into_real_data
 from make_framecache_final import generate_framecache
 from make_SFT_function import run_make_sfts_script
-from pipeline_paths import BIN_DIR, OUTPUTS_DATA_DIR, ensure_dir
+from pipeline_paths import BIN_DIR, get_pack_product_dir
 
 BASH_SCRIPT_PATH = BIN_DIR / "make_SFT-final-v2.sh"
 
@@ -59,11 +60,24 @@ CHANNEL_NAME = "H1:GWOSC-4KHZ_R1_STRAIN"
 WINDOWTYPE = "rectangular"
 IFO = "H1"
 FS_TARGET = 512
+SFT_VERBOSE = False
+PIPELINE_VERBOSE = False
 
-# Salidas.
-FREQ_PATH = ensure_dir(OUTPUTS_DATA_DIR / "tracks-frequencies_remote" / "signal")
-INDEX_PATH = ensure_dir(OUTPUTS_DATA_DIR / "track-index_remote" / "signal")
-POWER_PATH = ensure_dir(OUTPUTS_DATA_DIR / "Chuster-powers_remote" / "signal")
+
+def update_signal_progress(completed, total, status="ok", detail=""):
+    """Print a compact progress line for signal generation."""
+    message = f"Se han generado correctamente {completed}/{total} señales"
+    if status != "ok":
+        message = f"{message} | estado={status}"
+    if detail:
+        message = f"{message} | {detail}"
+    end = "\n" if status in {"error", "done"} else "\r"
+    print(message, end=end, flush=True)
+
+
+def log_verbose(message):
+    if PIPELINE_VERBOSE:
+        print(message, flush=True)
 
 
 def parse_args():
@@ -72,6 +86,7 @@ def parse_args():
     )
     parser.add_argument("--n-jobs", type=int, default=DEFAULT_N_JOBS)
     parser.add_argument("--job-id", type=int, default=DEFAULT_JOB_ID)
+    parser.add_argument("--pack", type=int, default=DEFAULT_PACK)
     return parser.parse_args()
 
 
@@ -139,17 +154,29 @@ def split_signals_for_job(signal_grid, base_jobs, job_id):
     return signal_grid[start:end], signals_per_job, remainder, total_jobs
 
 
-def process_single_tsft(pack, mchirp, distance_str, tsft, t_start, t_end, framecache_path):
-    delta_f = 1 / tsft
-    nbins = round(FBAND / delta_f)
-    nSFT_per_pack = int((NUM_FRAMES * FRAME_LENGTH) / tsft)
+def build_tsft_configs(tsft_values):
+    """Precompute per-tsft metadata reused for every signal."""
+    total_duration = NUM_FRAMES * FRAME_LENGTH
+    return [
+        {
+            "tsft": tsft,
+            "nbins": round(FBAND / (1 / tsft)),
+            "nsft": int(total_duration / tsft),
+            "remap_geometry": build_remap_geometry(tsft, FMIN, round(FBAND / (1 / tsft))),
+        }
+        for tsft in tsft_values
+    ]
 
-    output_txt = FREQ_PATH / f"track-freqs_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.txt"
-    output_index = INDEX_PATH / f"index-vit_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.txt"
-    output_power = POWER_PATH / f"power_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.npy"
+
+TSFT_CONFIGS = build_tsft_configs(TSFT_VALUES)
+
+
+def process_single_tsft(tsft_config, t_start, t_end, framecache_path, output_txt, output_index, output_power):
+    tsft = tsft_config["tsft"]
     output_png = None
 
-    with tempfile.TemporaryDirectory(prefix=f"sft-pack{pack}-tsft{tsft}-") as sft_output_path:
+    with tempfile.TemporaryDirectory(prefix=f"sft-tsft{tsft}-") as sft_output_path:
+        sft_start = time.perf_counter()
         run_make_sfts_script(
             bash_script_path=BASH_SCRIPT_PATH,
             t_start=t_start,
@@ -162,11 +189,33 @@ def process_single_tsft(pack, mchirp, distance_str, tsft, t_start, t_end, framec
             Band=FBAND,
             windowtype=WINDOWTYPE,
             channel=CHANNEL_NAME,
+            verbose=SFT_VERBOSE,
         )
+        sft_elapsed = time.perf_counter() - sft_start
+        print(f"[TIMING] MakeSFTs tsft={tsft}: {sft_elapsed:.2f} s", flush=True)
 
-        data_inj = load_sfts(sft_output_path, t_start, tsft, nbins, nSFT_per_pack)
-        C_inj, freqs = preprocess_data(data_inj, tsft, FMIN, FMAX)
-        x_remap, C_remap = remap_CShuster_to_fm83(C_inj, freqs, x_new=None, fill_value=np.nan)
+        data_inj = load_sfts(
+            sft_output_path,
+            t_start,
+            tsft,
+            tsft_config["nbins"],
+            tsft_config["nsft"],
+        )
+        remap_geometry = tsft_config["remap_geometry"]
+        C_inj, freqs = preprocess_data(
+            data_inj,
+            tsft,
+            FMIN,
+            FMAX,
+            freqs=remap_geometry["freqs"],
+        )
+        x_remap, C_remap = remap_CShuster_to_fm83(
+            C_inj,
+            freqs,
+            x_new=remap_geometry["x_new"],
+            fill_value=np.nan,
+            x_inc=remap_geometry["x_inc"],
+        )
 
         run_viterbi(
             C_remap,
@@ -186,10 +235,12 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
     mchirp = mchirp_from_mass1_mass2(m1, m2)
     distance_str = f"{distance:.3f}".replace(".", "_")
     t_to_merger = get_t_to_merger_for_mchirp(mchirp)
-    print(
+    freq_path = get_pack_product_dir(pack, "tracks-frequencies_remote", "signal")
+    index_path = get_pack_product_dir(pack, "track-index_remote", "signal")
+    power_path = get_pack_product_dir(pack, "Chuster-powers_remote", "signal")
+    log_verbose(
         f"Iniciando senal: m1={m1:.6g}, m2={m2:.6g}, dL={distance:.3f} Mpc, "
-        f"mchirp={mchirp:.6g}, t_to_merger={t_to_merger:.6g}",
-        flush=True,
+        f"mchirp={mchirp:.6g}, t_to_merger={t_to_merger:.6g}"
     )
 
     coal_time = inject_signal_into_real_data(
@@ -209,6 +260,7 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
         data_dir=injected_dir,
         channel_name=CHANNEL_NAME,
         existing_data=raw_existing_data,
+        verbose=PIPELINE_VERBOSE,
     )
 
     injected_dir_cache = os.path.join(injected_dir, f"{IFO}_inject_mc-{mchirp:.0e}_dl-{distance_str}")
@@ -221,26 +273,31 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
         frame_length=FRAME_LENGTH,
         t_start=t_start,
         coal_time=coal_time,
+        verbose=PIPELINE_VERBOSE,
     )
 
-    for tsft in TSFT_VALUES:
-        print(f"[mc={mchirp:.0e}, dl={distance_str}] Iniciando Tsft={tsft}", flush=True)
+    for tsft_config in TSFT_CONFIGS:
+        tsft = tsft_config["tsft"]
+        log_verbose(f"[mc={mchirp:.0e}, dl={distance_str}] Iniciando Tsft={tsft}")
         process_single_tsft(
-            pack=pack,
-            mchirp=mchirp,
-            distance_str=distance_str,
-            tsft=tsft,
+            tsft_config=tsft_config,
             t_start=t_start,
             t_end=t_end,
             framecache_path=framecache_path,
+            output_txt=freq_path / f"track-freqs_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.txt",
+            output_index=index_path / f"index-vit_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.txt",
+            output_power=power_path / f"power_Tsft-{tsft}_pack-{pack}_mc-{mchirp:.0e}_dl-{distance_str}.npy",
         )
-        print(f"[mc={mchirp:.0e}, dl={distance_str}] Tsft completado={tsft}", flush=True)
+        log_verbose(f"[mc={mchirp:.0e}, dl={distance_str}] Tsft completado={tsft}")
 
 
 def main():
     args = parse_args()
-    pack = DEFAULT_PACK
-    run_label = O3_WINDOWS[f"O3b-pack{pack}"]
+    pack = args.pack
+    run_key = f"O3b-pack{pack}"
+    if run_key not in O3_WINDOWS:
+        raise ValueError(f"Pack no soportado: {pack}. Packs disponibles: {sorted(int(key.split('pack')[1]) for key in O3_WINDOWS)}")
+    run_label = O3_WINDOWS[run_key]
     t_start, t_end = run_label
 
     signal_grid = build_signal_grid(MCHIRP_GRID, DISTANCE_GRID)
@@ -266,9 +323,8 @@ def main():
     with tempfile.TemporaryDirectory(prefix=f"o3-gwf-pack{pack}-") as temp_gwf_root:
         raw_data_dir = os.path.join(temp_gwf_root, f"O3b-pack{pack}-512HZ")
         injected_dir = os.path.join(temp_gwf_root, f"O3b-pack{pack}-512HZ-injected")
-        print(f"Usando carpeta temporal para .gwf: {temp_gwf_root}", flush=True)
-
-        print("------------ Downloading real O3 data ------------", flush=True)
+        log_verbose(f"Usando carpeta temporal para .gwf: {temp_gwf_root}")
+        log_verbose("------------ Downloading real O3 data ------------")
         download_o3_real_data(
             input_dir=raw_data_dir,
             ifo=IFO,
@@ -277,23 +333,39 @@ def main():
             frame_length=FRAME_LENGTH,
             fs_target=FS_TARGET,
             channel_name=CHANNEL_NAME,
-            verbose=True,
+            verbose=PIPELINE_VERBOSE,
         )
 
         raw_existing_data = load_raw_existing_data(raw_data_dir, t_start)
 
         # Procesa solo las senales asignadas a este job.
+        completed_signals = 0
+        total_assigned_signals = len(assigned_signals)
         for idx, signal_params in enumerate(assigned_signals, start=1):
-            print(f"Senal {idx}/{len(assigned_signals)} del job", flush=True)
-            process_single_signal(
-                pack=pack,
-                t_start=t_start,
-                t_end=t_end,
-                raw_data_dir=raw_data_dir,
-                raw_existing_data=raw_existing_data,
-                injected_dir=injected_dir,
-                signal_params=signal_params,
-            )
+            m1, m2, distance = signal_params
+            progress_detail = f"procesando senal {idx}/{total_assigned_signals} (m1={m1:.6g}, m2={m2:.6g}, dL={distance:.3f} Mpc)"
+            update_signal_progress(completed_signals, total_assigned_signals, status="running", detail=progress_detail)
+            try:
+                process_single_signal(
+                    pack=pack,
+                    t_start=t_start,
+                    t_end=t_end,
+                    raw_data_dir=raw_data_dir,
+                    raw_existing_data=raw_existing_data,
+                    injected_dir=injected_dir,
+                    signal_params=signal_params,
+                )
+            except Exception as exc:
+                error_detail = (
+                    f"error en senal {idx}/{total_assigned_signals} "
+                    f"(m1={m1:.6g}, m2={m2:.6g}, dL={distance:.3f} Mpc): {exc}"
+                )
+                update_signal_progress(completed_signals, total_assigned_signals, status="error", detail=error_detail)
+                raise
+
+            completed_signals += 1
+            final_status = "done" if completed_signals == total_assigned_signals else "ok"
+            update_signal_progress(completed_signals, total_assigned_signals, status=final_status)
 
 
 if __name__ == "__main__":

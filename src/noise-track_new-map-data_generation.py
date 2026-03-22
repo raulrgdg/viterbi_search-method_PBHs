@@ -1,12 +1,13 @@
 import os
 import tempfile
 import argparse
+import time
 import numpy as np
 from make_framecache_final import generate_framecache_raw_strain
 from make_SFT_function import run_make_sfts_script
 from download_O3_data import download_o3_real_data
-from algortihm_final import load_sfts, preprocess_data, run_viterbi, remap_CShuster_to_fm83
-from pipeline_paths import BIN_DIR, OUTPUTS_DATA_DIR, ensure_dir
+from algortihm_final import build_remap_geometry, load_sfts, preprocess_data, run_viterbi, remap_CShuster_to_fm83
+from pipeline_paths import BIN_DIR, get_pack_product_dir
 
 BASH_SCRIPT_PATH = BIN_DIR / "make_SFT-final-v2.sh"
 
@@ -132,11 +133,6 @@ DEFAULT_JOB_ID = 0
 # Depend on the number of CPUs requested. See strong_scale_test
 MAKE_SFT_THREADS = 256
 
-# Output folders
-FREQ_PATH = ensure_dir(OUTPUTS_DATA_DIR / "tracks-frequencies_remote" / "noise")
-INDEX_PATH = ensure_dir(OUTPUTS_DATA_DIR / "track-index_remote" / "noise")
-POWER_PATH = ensure_dir(OUTPUTS_DATA_DIR / "Chuster-powers_remote" / "noise")
-
 # Data parameters
 FRAME_LENGTH = 4096
 NUM_FRAMES = 8
@@ -147,19 +143,46 @@ CHANNEL_NAME = "H1:GWOSC-4KHZ_R1_STRAIN"
 WINDOWTYPE = "rectangular"
 IFO = "H1"
 FS_TARGET = 512
+SFT_VERBOSE = False
+PIPELINE_VERBOSE = False
 
 
-def process_single_tsft(pack, tsft, t_start, t_end, framecache_path_raw_strain, num_threads_per_worker):
-    delta_f = 1 / tsft
-    nbins = round(FBAND / delta_f)
-    nSFT_per_pack = int((NUM_FRAMES * FRAME_LENGTH) / tsft)
+def update_pack_progress(completed, total, status="ok", detail=""):
+    """Print a compact progress line for noise-pack generation."""
+    message = f"Packs procesados {completed}/{total}"
+    if status != "ok":
+        message = f"{message} | estado={status}"
+    if detail:
+        message = f"{message} | {detail}"
+    end = "\n" if status in {"error", "done"} else "\r"
+    print(message, end=end, flush=True)
 
-    output_txt = FREQ_PATH / f"track-freqs_Tsft-{tsft}_pack-{pack}.txt"
-    output_index = INDEX_PATH / f"index-vit_Tsft-{tsft}_pack-{pack}.txt"
-    output_power = POWER_PATH / f"power_Tsft-{tsft}_pack-{pack}.npy"
+
+def log_verbose(message):
+    if PIPELINE_VERBOSE:
+        print(message, flush=True)
+
+
+def build_tsft_configs(tsft_values):
+    """Precompute per-tsft metadata reused for every pack."""
+    total_duration = NUM_FRAMES * FRAME_LENGTH
+    return [
+        {
+            "tsft": tsft,
+            "nbins": round(FBAND / (1 / tsft)),
+            "nsft": int(total_duration / tsft),
+            "remap_geometry": build_remap_geometry(tsft, FMIN, round(FBAND / (1 / tsft))),
+        }
+        for tsft in tsft_values
+    ]
+
+
+def process_single_tsft(tsft_config, t_start, t_end, framecache_path_raw_strain, num_threads_per_worker, output_txt, output_index, output_power):
+    tsft = tsft_config["tsft"]
     output_png = None
 
-    with tempfile.TemporaryDirectory(prefix=f"sft-pack{pack}-tsft{tsft}-") as sft_output_path:
+    with tempfile.TemporaryDirectory(prefix=f"sft-tsft{tsft}-") as sft_output_path:
+        sft_start = time.perf_counter()
         run_make_sfts_script(
             bash_script_path=BASH_SCRIPT_PATH,
             t_start=t_start,
@@ -172,11 +195,33 @@ def process_single_tsft(pack, tsft, t_start, t_end, framecache_path_raw_strain, 
             Band=FBAND,
             windowtype=WINDOWTYPE,
             channel=CHANNEL_NAME,
+            verbose=SFT_VERBOSE,
         )
+        sft_elapsed = time.perf_counter() - sft_start
+        print(f"[TIMING] MakeSFTs tsft={tsft}: {sft_elapsed:.2f} s", flush=True)
 
-        data = load_sfts(sft_output_path, t_start, tsft, nbins, nSFT_per_pack)
-        cshuster, freqs = preprocess_data(data, tsft, FMIN, FMAX)
-        x_remap, cshuster_remap = remap_CShuster_to_fm83(cshuster, freqs, fill_value=np.nan)
+        data = load_sfts(
+            sft_output_path,
+            t_start,
+            tsft,
+            tsft_config["nbins"],
+            tsft_config["nsft"],
+        )
+        remap_geometry = tsft_config["remap_geometry"]
+        cshuster, freqs = preprocess_data(
+            data,
+            tsft,
+            FMIN,
+            FMAX,
+            freqs=remap_geometry["freqs"],
+        )
+        x_remap, cshuster_remap = remap_CShuster_to_fm83(
+            cshuster,
+            freqs,
+            x_new=remap_geometry["x_new"],
+            fill_value=np.nan,
+            x_inc=remap_geometry["x_inc"],
+        )
         run_viterbi(
             cshuster_remap,
             x_remap,
@@ -194,10 +239,14 @@ def process_single_tsft(pack, tsft, t_start, t_end, framecache_path_raw_strain, 
 def process_single_pack(pack, tsft_values, num_threads_per_worker):
     run_label = O3_WINDOWS[f"O3b-pack{pack}"]
     t_start, t_end = run_label
+    tsft_configs = build_tsft_configs(tsft_values)
+    freq_path = get_pack_product_dir(pack, "tracks-frequencies_remote", "noise")
+    index_path = get_pack_product_dir(pack, "track-index_remote", "noise")
+    power_path = get_pack_product_dir(pack, "Chuster-powers_remote", "noise")
     with tempfile.TemporaryDirectory(prefix=f"o3-gwf-pack{pack}-") as temp_gwf_root:
         raw_data_dir = os.path.join(temp_gwf_root, f"O3b-pack{pack}-512HZ")
-        print(f"Usando carpeta temporal para .gwf (pack {pack}): {temp_gwf_root}", flush=True)
-        print("------------ Downloading real O3 data ------------", flush=True)
+        log_verbose(f"Usando carpeta temporal para .gwf (pack {pack}): {temp_gwf_root}")
+        log_verbose("------------ Downloading real O3 data ------------")
         download_o3_real_data(
             input_dir=raw_data_dir,
             ifo=IFO,
@@ -206,7 +255,7 @@ def process_single_pack(pack, tsft_values, num_threads_per_worker):
             frame_length=FRAME_LENGTH,
             fs_target=FS_TARGET,
             channel_name=CHANNEL_NAME,
-            verbose=True,
+            verbose=PIPELINE_VERBOSE,
         )
 
         framecache_path_raw_strain = generate_framecache_raw_strain(
@@ -215,19 +264,23 @@ def process_single_pack(pack, tsft_values, num_threads_per_worker):
             num_frames=NUM_FRAMES,
             frame_length=FRAME_LENGTH,
             t_start=t_start,
+            verbose=PIPELINE_VERBOSE,
         )
 
-        for tsft in tsft_values:
-            print(f"[pack {pack}] Iniciando Tsft={tsft}", flush=True)
+        for tsft_config in tsft_configs:
+            tsft = tsft_config["tsft"]
+            log_verbose(f"[pack {pack}] Iniciando Tsft={tsft}")
             process_single_tsft(
-                pack=pack,
-                tsft=tsft,
+                tsft_config=tsft_config,
                 t_start=t_start,
                 t_end=t_end,
                 framecache_path_raw_strain=framecache_path_raw_strain,
                 num_threads_per_worker=num_threads_per_worker,
+                output_txt=freq_path / f"track-freqs_Tsft-{tsft}_pack-{pack}.txt",
+                output_index=index_path / f"index-vit_Tsft-{tsft}_pack-{pack}.txt",
+                output_power=power_path / f"power_Tsft-{tsft}_pack-{pack}.npy",
             )
-            print(f"[pack {pack}] Tsft completado: {tsft}", flush=True)
+            log_verbose(f"[pack {pack}] Tsft completado: {tsft}")
     return pack
 
 
@@ -300,10 +353,29 @@ def main():
     # 3) Procesado secuencial de packs por job.
     # IMPORTANTE: cada make_SFT ya paraleliza internamente (hasta los CPUs del nodo).
     # Evitamos lanzar varios packs a la vez para no sobrecargar el job.
-    for pack in packs:
-        print(f"Iniciando pack {pack}", flush=True)
-        pack_done = process_single_pack(pack, tsft_values, num_threads_per_worker)
-        print(f"Pack completado: {pack_done}", flush=True)
+    completed_packs = 0
+    total_assigned_packs = len(packs)
+    for idx, pack in enumerate(packs, start=1):
+        update_pack_progress(
+            completed_packs,
+            total_assigned_packs,
+            status="running",
+            detail=f"procesando pack {idx}/{total_assigned_packs} (pack={pack})",
+        )
+        try:
+            process_single_pack(pack, tsft_values, num_threads_per_worker)
+        except Exception as exc:
+            update_pack_progress(
+                completed_packs,
+                total_assigned_packs,
+                status="error",
+                detail=f"error en pack {idx}/{total_assigned_packs} (pack={pack}): {exc}",
+            )
+            raise
+
+        completed_packs += 1
+        final_status = "done" if completed_packs == total_assigned_packs else "ok"
+        update_pack_progress(completed_packs, total_assigned_packs, status=final_status)
 
 
 if __name__ == "__main__":

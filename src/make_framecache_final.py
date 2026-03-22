@@ -1,7 +1,7 @@
 import os
 
 
-def generate_framecache(input_dir, mchirp, distance, det, num_frames, frame_length, t_start, coal_time):
+def generate_framecache(input_dir, mchirp, distance, det, num_frames, frame_length, t_start, coal_time, verbose=True):
     """Create a framecache file for injected strain frames."""
     coal_time = int(coal_time)
     framecache_path = os.path.join(input_dir, f"framecache_inject_data_mc-{mchirp:.0e}_dl-{distance:.3f}")
@@ -14,11 +14,12 @@ def generate_framecache(input_dir, mchirp, distance, det, num_frames, frame_leng
             filename = f"file://localhost{input_dir}/{label}.gwf"
             f.write(f"{det} {frametype} {time} {frame_length} {filename}\n")
 
-    print("Done: make framecache.")
+    if verbose:
+        print("Done: make framecache.")
     return framecache_path
 
 
-def generate_framecache_raw_strain(input_dir, det, num_frames, frame_length, t_start):
+def generate_framecache_raw_strain(input_dir, det, num_frames, frame_length, t_start, verbose=True):
     """Create a framecache file for downloaded raw strain frames."""
     framecache_path = os.path.join(input_dir, "framecache_raw_strain_512HZ")
 
@@ -30,5 +31,6 @@ def generate_framecache_raw_strain(input_dir, det, num_frames, frame_length, t_s
             filename = f"file://localhost{input_dir}/{label}.gwf"
             f.write(f"{det} {frametype} {time} {frame_length} {filename}\n")
 
-    print("Done: make framecache.")
+    if verbose:
+        print("Done: make framecache.")
     return framecache_path

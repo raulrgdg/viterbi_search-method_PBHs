@@ -8,7 +8,8 @@ Scientific pipeline for generating, processing, and searching transient signals 
 - `bin/`: shell entrypoints launched by Condor and the SFT production helper script.
 - `src/`: Python source code for data download, signal injection, SFT processing, fitting, and search metrics.
 - `config/`: environment and run-setup documentation.
-- `outputs/`: generated reports, plots, logs, and data products.
+- `outputs/`: generated reports, plots, and logs.
+- `inputs/`: generated track/index/power products consumed by the main search pipeline.
 - `skills/`: local skill definition used to guide cleanup and organization work.
 
 ## Main Execution Chains
@@ -55,7 +56,7 @@ This path:
 
 ## Outputs
 
-- `outputs/data/`: generated track/index/power products.
+- `inputs/data/pack-x/`: generated track/index/power products grouped by pack.
 - `outputs/reports/`: CSV summaries and metric outputs.
 - `outputs/plots/`: diagnostic plots.
 - `outputs/logs/`: Condor stdout/stderr/log files.

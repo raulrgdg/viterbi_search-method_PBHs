@@ -10,44 +10,70 @@ VITERBI_TRANSITION_LOG_PROBS = np.log([0.30, 0.35, 0.35])
 
 
 def load_sfts(sftdir_h1, gpstime_start, tsft, nbins, nsft):
-    """Load a sequence of H1 SFT files into a complex array."""
-    data_h1 = np.zeros((nbins, nsft), dtype=np.complex128)
-    for k in range(nsft):
-        sftfile_h1 = (
-            f"{sftdir_h1}/H-1_H1_{tsft}SFT_MSFT-{gpstime_start + k * tsft}-{tsft}.sft"
+    """Load a sequence of H1 SFT files into a complex array with one bulk read."""
+    sft_paths = [
+        f"{sftdir_h1}/H-1_H1_{tsft}SFT_MSFT-{gpstime_start + k * tsft}-{tsft}.sft"
+        for k in range(nsft)
+    ]
+    missing_paths = [path for path in sft_paths if not os.path.exists(path)]
+    if missing_paths:
+        raise FileNotFoundError(
+            f"Missing {len(missing_paths)} SFT files for tsft={tsft}. First missing file: {missing_paths[0]}"
         )
-        if not os.path.exists(sftfile_h1):
-            print(f"⚠️ SFT file missing: {sftfile_h1}")
-            break
-        data_h1[:, k] = LoadSFT(sftfile_h1, norm_timebin_power=True).H1.sft[0]
-    return data_h1
+
+    sft_bundle = LoadSFT(";".join(sft_paths), norm_timebin_power=True).H1.sft
+    if sft_bundle.shape != (nsft, nbins):
+        raise ValueError(
+            f"Unexpected SFT array shape {sft_bundle.shape}; expected ({nsft}, {nbins}) for tsft={tsft}"
+        )
+
+    return np.asarray(sft_bundle, dtype=np.complex128).T
 
 
-def preprocess_data(data_h1, tsft, fmin, fmax):
-    """Normalize SFT amplitudes and return the associated frequency grid."""
+def build_remap_geometry(tsft, fmin, nbins):
+    """Precompute the static frequency/remap geometry for a given tsft."""
     delta_f = 1 / tsft
-    nbins = data_h1.shape[0]
-
     freqs = fmin + np.arange(nbins) * delta_f
-    psd_h1 = np.median(np.abs(data_h1), axis=1) / (2 * np.log(2))
-    cshuster_h1 = np.transpose(np.abs(data_h1) / (psd_h1[:, np.newaxis]))
-    return cshuster_h1, freqs
-
-def remap_CShuster_to_fm83(cshuster, freqs, x_new=None, fill_value=np.nan):
-    """Remap a frequency grid into an evenly sampled ``f^(-8/3)`` coordinate."""
-    freqs = np.asarray(freqs)
-    cshuster = np.asarray(cshuster)
-
     if np.any(freqs <= 0):
         raise ValueError("freqs debe ser >0 para usar f^{-8/3}")
 
-    x = freqs ** (-8 / 3)
-    x_inc = x[::-1]
+    x_inc = freqs[::-1] ** (-8 / 3)
+    x_new = np.linspace(x_inc.min(), x_inc.max(), nbins)
+    return {
+        "freqs": freqs,
+        "x_inc": x_inc,
+        "x_new": x_new,
+    }
+
+
+def preprocess_data(data_h1, tsft, fmin, fmax, freqs=None):
+    """Normalize SFT amplitudes and return the associated frequency grid."""
+    if freqs is None:
+        delta_f = 1 / tsft
+        nbins = data_h1.shape[0]
+        freqs = fmin + np.arange(nbins) * delta_f
+    magnitude = np.abs(data_h1)
+    psd_h1 = np.median(magnitude, axis=1) / (2 * np.log(2))
+    cshuster_h1 = (magnitude / psd_h1[:, np.newaxis]).T
+    return cshuster_h1, freqs
+
+
+def remap_CShuster_to_fm83(cshuster, freqs, x_new=None, fill_value=np.nan, x_inc=None):
+    """Remap a frequency grid into an evenly sampled ``f^(-8/3)`` coordinate."""
+    cshuster = np.asarray(cshuster)
+
+    if x_inc is None:
+        freqs = np.asarray(freqs)
+        if np.any(freqs <= 0):
+            raise ValueError("freqs debe ser >0 para usar f^{-8/3}")
+        x_inc = freqs[::-1] ** (-8 / 3)
+    else:
+        x_inc = np.asarray(x_inc)
     c_inc = cshuster[:, ::-1]
 
     if x_new is None:
         # Use a uniform x-grid so imshow/Viterbi consume a regular coordinate system.
-        x_new = np.linspace(x_inc.min(), x_inc.max(), freqs.size)
+        x_new = np.linspace(x_inc.min(), x_inc.max(), c_inc.shape[1])
 
     c_new = np.empty((c_inc.shape[0], x_new.size), dtype=float)
     for i in range(c_inc.shape[0]):
