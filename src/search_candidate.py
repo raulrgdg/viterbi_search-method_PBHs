@@ -1,7 +1,7 @@
 import argparse
 import csv
+import os
 from pathlib import Path
-import time
 
 import numpy as np
 
@@ -18,30 +18,16 @@ NOISE_MODE = True
 SIGNAL_PACK = 3
 REPORTS_DIR = ensure_dir(OUTPUTS_REPORTS_DIR)
 TEMP_SHARDS_DIR = ensure_dir(OUTPUTS_DIR / "tmp" / "search_shards")
-NOISE_CSV_NAME = "search_results_noise_final-big-search-flag_perc-90-new-recorte-total-window-v4.csv"
-SIGNAL_CSV_NAME = "search_results_signal_final-big-search-flag_perc-90-new-recorte-total-window-v4.csv"
-MERGE_WAIT_SECONDS = 120
-MERGE_POLL_SECONDS = 5
+NOISE_CSV_NAME = "search_results_noise.csv"
+SIGNAL_CSV_NAME = "search_results_signal.csv"
+SEARCH_RESULT_FIELDNAMES = ["pack", "mchirp", "distance", "candidate", "nmse", "nsigma", "mass", "injected", "status"]
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Candidate search repartido en jobs Condor.")
+    parser = argparse.ArgumentParser(description="Standalone candidate search over precomputed products.")
     parser.add_argument("--n-jobs", type=int, default=DEFAULT_N_JOBS)
     parser.add_argument("--job-id", type=int, default=DEFAULT_JOB_ID)
     return parser.parse_args()
-
-
-def _resolve_result(result):
-    """Normalize the variable-length search result tuple."""
-    if result[0] is None:
-        if len(result) == 2:
-            res, opt_nsigma = result
-            return res, None, opt_nsigma, None
-        res, nmse_eval, opt_nsigma, extended_optimal_block = result
-        return res, nmse_eval, opt_nsigma, extended_optimal_block
-
-    res, nmse_eval, opt_nsigma, extended_optimal_block = result
-    return res, nmse_eval, opt_nsigma, extended_optimal_block
 
 
 def _output_csv_path(base_name, n_jobs, job_id):
@@ -51,58 +37,119 @@ def _output_csv_path(base_name, n_jobs, job_id):
     return TEMP_SHARDS_DIR / f"{stem}.job-{job_id:03d}-of-{n_jobs:03d}.{suffix}"
 
 
+def search_results_csv_name(injected):
+    """Return the standard CSV filename for noise or injected search results."""
+    return SIGNAL_CSV_NAME if injected else NOISE_CSV_NAME
+
+
+def search_results_output_path(injected, n_jobs=1, job_id=0):
+    """Return the standard output path for one search-results writer."""
+    return _output_csv_path(search_results_csv_name(injected), n_jobs, job_id)
+
+
+def append_search_result_row(result, output_csv, *, write_header_if_missing=True):
+    """Append one normalized search-result dict to a CSV file."""
+    output_csv = Path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = output_csv.exists() and output_csv.stat().st_size > 0
+
+    with output_csv.open("a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=SEARCH_RESULT_FIELDNAMES)
+        if write_header_if_missing and not file_exists:
+            writer.writeheader()
+        writer.writerow({field: result.get(field, "") for field in SEARCH_RESULT_FIELDNAMES})
+
+
+def write_search_results_rows(rows, output_csv):
+    """Write a full collection of normalized search-result dicts to a CSV file."""
+    output_csv = Path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    with output_csv.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=SEARCH_RESULT_FIELDNAMES)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in SEARCH_RESULT_FIELDNAMES})
+
+
+def mark_search_results_job_done(injected, n_jobs, job_id):
+    """Create the shard done-marker used for later merge."""
+    _done_marker_path(search_results_csv_name(injected), n_jobs, job_id).write_text("", encoding="utf-8")
+
+
+def merge_search_results_if_ready(injected, total_jobs):
+    """Merge search-result shards when all jobs have completed."""
+    _merge_shards_if_ready(search_results_csv_name(injected), SEARCH_RESULT_FIELDNAMES, total_jobs)
+
+
 def _expected_shard_paths(base_name, total_jobs):
     return [_output_csv_path(base_name, total_jobs, job_id) for job_id in range(total_jobs)]
 
 
-def _merge_shards_if_ready(base_name, fieldnames, total_jobs, job_id):
+def _done_marker_path(base_name, n_jobs, job_id):
+    shard_path = _output_csv_path(base_name, n_jobs, job_id)
+    return shard_path.with_suffix(f"{shard_path.suffix}.done")
+
+
+def _expected_done_markers(base_name, total_jobs):
+    return [_done_marker_path(base_name, total_jobs, job_id) for job_id in range(total_jobs)]
+
+
+def _merge_lock_path(base_name):
+    return TEMP_SHARDS_DIR / f"{base_name}.merge.lock"
+
+
+def _try_acquire_merge_lock(lock_path):
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return None
+
+    os.close(fd)
+    return lock_path
+
+
+def _merge_shards_if_ready(base_name, fieldnames, total_jobs):
     if total_jobs == 1:
         return
 
-    # Solo un job intenta cerrar el merge para evitar carreras y borrados cruzados.
-    if job_id != total_jobs - 1:
+    shard_paths = _expected_shard_paths(base_name, total_jobs)
+    done_markers = _expected_done_markers(base_name, total_jobs)
+    missing_done = [path for path in done_markers if not path.exists()]
+    if missing_done:
         print(
-            f"Merge delegado al ultimo job: actual={job_id}, merger={total_jobs - 1}.",
+            f"Merge pendiente para {base_name}: faltan {len(missing_done)} job(s) por terminar.",
             flush=True,
         )
         return
 
-    output_csv = REPORTS_DIR / base_name
-    shard_paths = _expected_shard_paths(base_name, total_jobs)
-    deadline = time.time() + MERGE_WAIT_SECONDS
-    while True:
-        missing = [path for path in shard_paths if not path.exists()]
-        if not missing:
-            break
-        if time.time() >= deadline:
-            print(
-                f"Merge pendiente para {base_name}: faltan {len(missing)} shard(s) tras esperar {MERGE_WAIT_SECONDS}s.",
-                flush=True,
-            )
-            return
-        print(
-            f"Esperando shards para {base_name}: faltan {len(missing)} shard(s).",
-            flush=True,
-        )
-        time.sleep(MERGE_POLL_SECONDS)
+    lock_path = _merge_lock_path(base_name)
+    if _try_acquire_merge_lock(lock_path) is None:
+        print(f"Merge ya en curso para {base_name}.", flush=True)
+        return
 
-    temp_output_csv = output_csv.with_suffix(f"{output_csv.suffix}.tmp")
-    with temp_output_csv.open("w", newline="", encoding="utf-8") as outfile:
-        writer = csv.DictWriter(outfile, fieldnames=fieldnames)
-        writer.writeheader()
+    try:
+        output_csv = REPORTS_DIR / base_name
+        temp_output_csv = output_csv.with_suffix(f"{output_csv.suffix}.tmp")
+        with temp_output_csv.open("w", newline="", encoding="utf-8") as outfile:
+            writer = csv.DictWriter(outfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for shard_path in shard_paths:
+                with shard_path.open(newline="", encoding="utf-8") as infile:
+                    reader = csv.DictReader(infile)
+                    for row in reader:
+                        writer.writerow(row)
+
+        temp_output_csv.replace(output_csv)
 
         for shard_path in shard_paths:
-            with shard_path.open(newline="", encoding="utf-8") as infile:
-                reader = csv.DictReader(infile)
-                for row in reader:
-                    writer.writerow(row)
+            shard_path.unlink(missing_ok=True)
+        for done_marker in done_markers:
+            done_marker.unlink(missing_ok=True)
 
-    temp_output_csv.replace(output_csv)
-
-    for shard_path in shard_paths:
-        shard_path.unlink(missing_ok=True)
-
-    print(f"CSV unificado actualizado en: {output_csv}", flush=True)
+        print(f"CSV unificado actualizado en: {output_csv}", flush=True)
+    finally:
+        lock_path.unlink(missing_ok=True)
 
 
 def split_targets_for_job(targets, base_jobs, job_id):
@@ -139,7 +186,7 @@ def _build_signal_targets():
 
 
 def _run_noise_search(assigned_targets):
-    """Run the search over the assigned noise packs and collect CSV rows."""
+    """Run the standalone search over the assigned noise packs."""
     rows = []
     skipped = 0
 
@@ -152,25 +199,17 @@ def _run_noise_search(assigned_targets):
             pack=pack,
             noise=True,
         )
-        res, nmse_eval, opt_nsigma, _extended_optimal_block = _resolve_result(result)
-        candidate = bool(res)
-        if not candidate:
+        if not result["candidate"]:
             print(f"[SKIP] pack={pack}, noise")
             skipped += 1
 
-        rows.append(
-            {
-                "candidate": candidate,
-                "final_nmse": nmse_eval if nmse_eval is not None else "",
-                "opt_nsigma": opt_nsigma if opt_nsigma is not None else "",
-            }
-        )
+        rows.append(result)
 
     return rows, skipped
 
 
 def _run_signal_search(assigned_targets):
-    """Run the search over the assigned injected-signal targets and collect CSV rows."""
+    """Run the standalone search over the assigned injected-signal targets."""
     rows = []
     skipped = 0
 
@@ -184,39 +223,17 @@ def _run_signal_search(assigned_targets):
             pack=SIGNAL_PACK,
             noise=False,
         )
-        res, nmse_eval, opt_nsigma, extended_optimal_block = _resolve_result(result)
-        candidate = bool(res)
-        if not candidate:
+        if not result["candidate"]:
             print(f"[SKIP] mchirp={mchirp:.0e}, distance={distance}")
             skipped += 1
 
-        final_mass = ""
-        final_slope = ""
-        if extended_optimal_block is not None:
-            final_mass_value = extended_optimal_block.get("final_mass")
-            final_slope_value = extended_optimal_block.get("final_slope")
-            if final_mass_value is not None:
-                final_mass = float(final_mass_value)
-            if final_slope_value is not None:
-                final_slope = float(final_slope_value)
-
-        rows.append(
-            {
-                "real_mchirp": mchirp,
-                "real_distance": distance,
-                "candidate": candidate,
-                "final_nmse": nmse_eval if nmse_eval is not None else "",
-                "opt_nsigma": opt_nsigma if opt_nsigma is not None else "",
-                "final_mass": final_mass,
-                "final_slope": final_slope,
-            }
-        )
+        rows.append(result)
 
     return rows, skipped
 
 
 def main():
-    """Run the candidate search workflow and write the summary CSV."""
+    """Run the legacy standalone search workflow and write the summary CSV."""
     args = parse_args()
 
     if NOISE_MODE:
@@ -225,7 +242,6 @@ def main():
             targets, args.n_jobs, args.job_id
         )
         output_csv = _output_csv_path(NOISE_CSV_NAME, args.n_jobs, args.job_id)
-        fieldnames = ["candidate", "final_nmse", "opt_nsigma"]
         rows, skipped = _run_noise_search(assigned_targets)
     else:
         targets = _build_signal_targets()
@@ -233,15 +249,6 @@ def main():
             targets, args.n_jobs, args.job_id
         )
         output_csv = _output_csv_path(SIGNAL_CSV_NAME, args.n_jobs, args.job_id)
-        fieldnames = [
-            "real_mchirp",
-            "real_distance",
-            "candidate",
-            "final_nmse",
-            "opt_nsigma",
-            "final_mass",
-            "final_slope",
-        ]
         rows, skipped = _run_signal_search(assigned_targets)
 
     print(
@@ -250,27 +257,30 @@ def main():
         flush=True,
     )
 
-    if not assigned_targets:
-        print(
-            f"Job sin targets asignados: job_id={args.job_id}, n_jobs={args.n_jobs}. No hay trabajo.",
-            flush=True,
-        )
-        return
-
     print(
         f"Job actual: job_id={args.job_id}/{total_jobs - 1}, targets_asignados={len(assigned_targets)}",
         flush=True,
     )
 
-    with output_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_search_results_rows(rows, output_csv)
+
+    if args.n_jobs > 1:
+        _done_marker_path(
+            NOISE_CSV_NAME if NOISE_MODE else SIGNAL_CSV_NAME,
+            total_jobs,
+            args.job_id,
+        ).write_text("", encoding="utf-8")
+
+    if not assigned_targets:
+        print(
+            f"Job sin targets asignados: job_id={args.job_id}, n_jobs={args.n_jobs}. Shard vacio generado.",
+            flush=True,
+        )
 
     if NOISE_MODE:
-        _merge_shards_if_ready(NOISE_CSV_NAME, fieldnames, total_jobs, args.job_id)
+        _merge_shards_if_ready(NOISE_CSV_NAME, SEARCH_RESULT_FIELDNAMES, total_jobs)
     else:
-        _merge_shards_if_ready(SIGNAL_CSV_NAME, fieldnames, total_jobs, args.job_id)
+        _merge_shards_if_ready(SIGNAL_CSV_NAME, SEARCH_RESULT_FIELDNAMES, total_jobs)
 
     print(f"Total procesados por este job: {len(rows)}")
     print(f"Total skipped candidates: {skipped}")

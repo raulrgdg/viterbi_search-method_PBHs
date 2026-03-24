@@ -73,6 +73,33 @@ def load_spectrogram_npy(path_npy, expected_time_len=None):
     return data
 
 
+def normalize_track_array(track):
+    """Normalize an in-memory track to a 1D float array."""
+    track = np.asarray(track, dtype=float)
+    if track.ndim != 1:
+        raise ValueError(f"El track debe ser 1D, recibido: {track.shape}")
+    return track
+
+
+def normalize_spectrogram_array(data, expected_time_len=None):
+    """Normalize an in-memory spectrogram and align it as [time, frequency]."""
+    data = np.asarray(data, dtype=float)
+    if data.ndim != 2:
+        raise ValueError(f"El espectrograma debe ser 2D, recibido: {data.shape}")
+
+    if expected_time_len is not None:
+        if data.shape[0] != expected_time_len and data.shape[1] == expected_time_len:
+            data = data.T
+        if data.shape[0] < expected_time_len:
+            raise ValueError(
+                f"El espectrograma tiene {data.shape[0]} pasos de tiempo y el track {expected_time_len}"
+            )
+        if data.shape[0] > expected_time_len:
+            data = data[:expected_time_len]
+
+    return data
+
+
 def split_track_windows(track, n_windows):
     """Split a track into `n_windows` non-overlapping windows."""
     if n_windows <= 0:
@@ -378,6 +405,25 @@ def second_power_check(path_track, path_data, opt_tsft, n_windows):
 
     return blocks, flag
 
+
+def second_power_check_in_memory(track, data, opt_tsft, n_windows):
+    """Run the second-stage power window screening from in-memory arrays."""
+    track = normalize_track_array(track)
+    data = normalize_spectrogram_array(data, expected_time_len=len(track))
+    Nsft = len(track)
+
+    starts, ends, total_power, powers, fractions = window_power_metric(track, data, n_windows=n_windows, Nsft=Nsft)
+    _print_window_power_summary(starts, ends, powers, fractions, opt_tsft)
+
+    blocks, flag = select_top_windows(starts, ends, fractions, n_top=TOP_N_BLOCKS, k=POWER_THRESHOLD_K)
+    print("Bloques con más contribución:")
+    for s, e, f in blocks:
+        t0 = s * opt_tsft
+        t1 = e * opt_tsft
+        print(f"[{t0}:{t1}] frac={f:.4f} del total power track")
+
+    return blocks, flag
+
 def second_fit_check(path_track, path_data, opt_tsft, n_windows):
     """Legacy variant of second-stage check retained for compatibility."""
     track = load_track_txt(path_track)
@@ -495,6 +541,72 @@ def _candidate_threshold_nsigma(nmse_eval):
     """Return the nsigma threshold from the calibrated line."""
     return LINEAR_THRESHOLD_SLOPE * nmse_eval + LINEAR_THRESHOLD_INTERCEPT
 
+
+def _build_search_result(pack, mchirp, distance, noise, candidate, nmse, nsigma, mass, status):
+    """Return a stable search result payload for both noise and injected cases."""
+    return {
+        "pack": int(pack),
+        "mchirp": float(mchirp) if mchirp is not None else "",
+        "distance": float(distance) if distance is not None else "",
+        "candidate": bool(candidate),
+        "nmse": float(nmse) if nmse is not None and np.isfinite(nmse) else "",
+        "nsigma": float(nsigma) if nsigma is not None and np.isfinite(nsigma) else "",
+        "mass": float(mass) if mass is not None and np.isfinite(mass) else "",
+        "injected": not noise,
+        "status": status,
+    }
+
+
+def _load_noise_stats():
+    csv_path = REPORTS_DIR / "noise_metrics_2-test.csv"
+    if not csv_path.exists():
+        csv_path = REPORTS_DIR / "noise_metrics_2-test-version2.csv"
+    df = pd.read_csv(csv_path)
+    df["tsft"] = df["tsft"].astype(int)
+    mean_noise_power_map = dict(zip(df["tsft"], df["mean_total_power"], strict=False))
+    std_noise_power_map = dict(zip(df["tsft"], df["std_total_power"], strict=False))
+    return mean_noise_power_map, std_noise_power_map
+
+
+def first_power_check_in_memory(tsft_results):
+    """Select the best tsft using in-memory tracks and powers."""
+    mean_noise_power_map, std_noise_power_map = _load_noise_stats()
+    n_sigma_threshold = 1.0001
+    best_n_sigma_above_threshold = -np.inf
+    best_n_sigma_overall = -np.inf
+    opt_tsft = 0
+    opt_nsigma = -np.inf
+    found_above_threshold = False
+
+    for tsft_result in tsft_results:
+        tsft = int(tsft_result["tsft"])
+        track = normalize_track_array(tsft_result["track_index"])
+        data = normalize_spectrogram_array(tsft_result["power"], expected_time_len=len(track))
+        Nsft = len(track)
+        total_power = window_power_metric(track, data, n_windows=1, Nsft=Nsft)
+        mean_noise = mean_noise_power_map[tsft]
+        std_noise = std_noise_power_map[tsft]
+        n_sigma = (total_power - mean_noise) / std_noise
+
+        if n_sigma > best_n_sigma_overall:
+            best_n_sigma_overall = n_sigma
+            opt_nsigma = n_sigma
+            opt_tsft = tsft
+
+        if n_sigma > n_sigma_threshold and n_sigma > best_n_sigma_above_threshold:
+            found_above_threshold = True
+            best_n_sigma_above_threshold = n_sigma
+            opt_nsigma = n_sigma
+            opt_tsft = tsft
+            print(f"Nuevo mejor n_sigma > {n_sigma_threshold:.3f}: n_sigma={opt_nsigma:.6f}, tsft={opt_tsft}")
+        else:
+            print(f"tsft={tsft}: n_sigma={n_sigma:.6f}. Óptimo actual -> tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}")
+
+    if not found_above_threshold:
+        print(f" !!!!! No se encontró ningún tsft con n_sigma > {n_sigma_threshold:.3f}. Se toma el mayor n_sigma disponible: tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}. !!!!!")
+
+    return opt_tsft, opt_nsigma, found_above_threshold
+
 def search_candidates(mchirp, distance, tsft_list, pack, noise):
     nmse_eval = None
     extended_optimal_block = None
@@ -517,7 +629,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     top_blocks, flag = second_power_check(path_track=path_index_track, path_data=path_data, opt_tsft=opt_tsft, n_windows=n_windows)
     if not top_blocks:
         print("No se encontraron bloques con contribución suficiente en second_power_check. Fin de ejecución.")
-        return None, nmse_eval, opt_nsigma, extended_optimal_block
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_second_power_check")
     
     # ------- Ejemplo Third Check
     for block_start, block_end, ratio in top_blocks:
@@ -576,7 +688,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
 
     if not best_blocks:
         print("Ningún bloque candidato pasó el Third check fit (probablemente por masa negativa o ajuste inválido). Fin de ejecución.")
-        return None, nmse_eval, opt_nsigma, extended_optimal_block
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_third_fit_check")
 
     for i in range(len(best_blocks)):
         b = best_blocks[i] if isinstance(best_blocks, list) else best_blocks
@@ -598,7 +710,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
 
     if optimal_block is None:
         print("No se pudo seleccionar un bloque óptimo válido (SSE no finito o sin datos). Fin de ejecución.")
-        return None, nmse_eval, opt_nsigma, extended_optimal_block
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_optimal_block_selection")
 
     extended_optimal_block = expansion_block(
         optimal_block,
@@ -609,7 +721,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     )
     if extended_optimal_block is None:
         print("No fue posible expandir el bloque óptimo con los criterios actuales. Fin de ejecución.")
-        return None, nmse_eval, opt_nsigma, extended_optimal_block
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_block_expansion")
 
     print(
         f"Bloque óptimo extendido: t_start={extended_optimal_block['block_start']*opt_tsft:.2f}s, "
@@ -670,8 +782,91 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
             f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
             f"(nsigma_th={nsigma_candidate_th:.6e}). No se considera un candidato válido."
         )
-        return None, nmse_eval, opt_nsigma, extended_optimal_block
-    return True, nmse_eval, opt_nsigma, extended_optimal_block
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=mass_eval, status="rejected_linear_threshold")
+    return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=True, nmse=nmse_eval, nsigma=opt_nsigma, mass=mass_eval, status="candidate_found")
+
+
+def search_candidates_in_memory(mchirp, distance, pack, noise, tsft_results):
+    """Run the same candidate search using in-memory tsft products."""
+    nmse_eval = None
+    extended_optimal_block = None
+    distance_str = f"{distance:.3f}".replace('.', '_') if distance is not None else "noise"
+    nmse_nref = 64
+    nmse_len_alpha = 1.0
+
+    opt_tsft, opt_nsigma, found_above_threshold = first_power_check_in_memory(tsft_results)
+    print(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
+
+    selected = next((item for item in tsft_results if int(item["tsft"]) == int(opt_tsft)), None)
+    if selected is None:
+        raise ValueError(f"No se encontró el tsft óptimo {opt_tsft} en tsft_results")
+
+    top_blocks, flag = second_power_check_in_memory(track=selected["track_index"], data=selected["power"], opt_tsft=opt_tsft, n_windows=8)
+    if not top_blocks:
+        print("No se encontraron bloques con contribución suficiente en second_power_check. Fin de ejecución.")
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_second_power_check")
+
+    for block_start, block_end, ratio in top_blocks:
+        t0 = block_start * opt_tsft
+        t1 = block_end * opt_tsft
+        print(f"Analizando bloque [{t0}:{t1}] con contribución {ratio:.4f} del total power track")
+
+    track = normalize_track_array(selected["track_freq"])
+    best_blocks, significant_block = fit_slope_candidate_blocks(track=track, tsft=opt_tsft, candidate_blocks=top_blocks, flag=flag, n_windows_per_block=1, blocks_in_time=False)
+
+    if flag:
+        print("Bloque muy significativo, con alto nmse. Alta probabilidad de señal de alta masa: efímera pero potente")
+        best_blocks, significant_block = fit_slope_candidate_significant__blocks(track=track, tsft=opt_tsft, candidate_blocks=top_blocks, n_windows_per_block=8, blocks_in_time=False)
+
+    if not best_blocks:
+        print("Ningún bloque candidato pasó el Third check fit (probablemente por masa negativa o ajuste inválido). Fin de ejecución.")
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_third_fit_check")
+
+    for i in range(len(best_blocks)):
+        b = best_blocks[i] if isinstance(best_blocks, list) else best_blocks
+        print(f"Mejor bloque: t_start={b['starts'][0]*opt_tsft:.2f}s, t_end={b['ends'][-1]*opt_tsft:.2f}s, best_slope={float(b['best_slope'][0]):.6e}, best_mass={float(b['best_mass'][0]):.6e}, best_nmse={float(b['best_nmse'][0]):.6e}")
+
+    optimal_block = _select_optimal_block(best_blocks, opt_tsft)
+    if optimal_block is None:
+        print("No se pudo seleccionar un bloque óptimo válido (SSE no finito o sin datos). Fin de ejecución.")
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_optimal_block_selection")
+
+    extended_optimal_block = expansion_block(optimal_block, track, tsft=opt_tsft, nmse_nref=nmse_nref, nmse_len_alpha=nmse_len_alpha)
+    if extended_optimal_block is None:
+        print("No fue posible expandir el bloque óptimo con los criterios actuales. Fin de ejecución.")
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_block_expansion")
+
+    print(
+        f"Bloque óptimo extendido: t_start={extended_optimal_block['block_start']*opt_tsft:.2f}s, "
+        f"t_end={extended_optimal_block['block_end']*opt_tsft:.2f}s, "
+        f"final_slope={float(extended_optimal_block.get('final_slope', extended_optimal_block['best_slope'][0])):.6e}, "
+        f"final_mass={float(extended_optimal_block.get('final_mass', extended_optimal_block['best_mass'][0])):.6e}, "
+        f"final_nmse_raw={float(extended_optimal_block.get('final_nmse_raw', np.min(np.asarray(extended_optimal_block.get('best_nmse', [np.inf]), dtype=float)))):.6e}, "
+        f"final_nmse_pen={float(extended_optimal_block.get('final_nmse', np.min(np.asarray(extended_optimal_block.get('best_nmse', [np.inf]), dtype=float)))):.6e}"
+    )
+    _plot_optimal_block(track, extended_optimal_block, noise, pack, opt_tsft, mchirp, distance_str)
+
+    output_txt = _candidate_output_path(noise=noise, pack=pack)
+    nmse_eval = float(extended_optimal_block.get("final_nmse", np.inf))
+    if not np.isfinite(nmse_eval):
+        nmse_values_ext = np.asarray(extended_optimal_block.get("best_nmse", []), dtype=float)
+        nmse_eval = float(np.min(nmse_values_ext)) if nmse_values_ext.size > 0 else np.inf
+    nmse_raw_eval = float(extended_optimal_block.get("final_nmse_raw", nmse_eval))
+    n_points_ext = int(extended_optimal_block.get("final_n_points", 0))
+    len_factor_ext = float(extended_optimal_block.get("final_len_factor", 1.0))
+    slope_eval = float(extended_optimal_block.get("final_slope", extended_optimal_block["best_slope"][0]))
+    mass_eval = float(extended_optimal_block.get("final_mass", extended_optimal_block["best_mass"][0]))
+
+    print(f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}")
+
+    nsigma_candidate_th = _candidate_threshold_nsigma(nmse_eval)
+    candidate_passed = opt_nsigma >= nsigma_candidate_th
+    _write_candidate_report(output_txt=output_txt, is_noise=noise, passed=candidate_passed, pack=pack, mchirp=mchirp, distance_str=distance_str, block=extended_optimal_block, opt_tsft=opt_tsft, slope_eval=slope_eval, mass_eval=mass_eval, nmse_raw_eval=nmse_raw_eval, nmse_eval=nmse_eval, nmse_candidate_th=nsigma_candidate_th)
+    if not candidate_passed:
+        print("El bloque extendido no cumple el umbral lineal " f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} " f"(nsigma_th={nsigma_candidate_th:.6e}). No se considera un candidato válido.")
+        return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=mass_eval, status="rejected_linear_threshold")
+    print("El bloque extendido cumple el umbral lineal " f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} " f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}.")
+    return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=True, nmse=nmse_eval, nsigma=opt_nsigma, mass=mass_eval, status="candidate_found")
 
 def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th best method, look at comparison between both metric plots.
     nmse_eval = None

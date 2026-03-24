@@ -107,4 +107,4 @@ python3 src/tmerger_mass_windows.py --mchirp-min 1e-4 --mchirp-max 1e-1 --flow 6
 
 - The code assumes the scientific runtime dependencies from the `vit` environment are available.
 - `src/general_search.py` is an auxiliary entrypoint; the main Condor search chain still uses `src/search_candidate.py`.
-- `src/search_candidate.py` now follows the same partitioning pattern as signal/noise: Condor passes `n_jobs` and `job_id`, and each job writes its own CSV shard when `n_jobs > 1`.
+- `src/search_candidate.py` writes one CSV shard per job when `n_jobs > 1`; when all jobs have finished, one of them acquires a lock, merges the shards from `outputs/tmp/search_shards/` and removes the temporary files.

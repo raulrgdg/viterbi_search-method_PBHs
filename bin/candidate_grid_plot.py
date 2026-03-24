@@ -7,12 +7,12 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
-from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
+from matplotlib.ticker import LogFormatterMathtext, LogLocator, NullFormatter
 import numpy as np
 
 
-DEFAULT_CSV = Path("outputs/reports/search_results_signal_final-big-search-flag_perc-90-new-recorte-total-window-v4.csv")
+DEFAULT_CSV = Path("outputs/reports/search_results_signal_pack3.csv")
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,34 +66,38 @@ def load_grid(csv_path: Path) -> tuple[np.ndarray, list[float], list[float]]:
 
     return grid, mchirps, distances
 
-
 def plot_grid(grid: np.ndarray, mchirps: list[float], distances: list[float], output_path: Path) -> None:
     fig, ax = plt.subplots(figsize=(7.2, 5.4), constrained_layout=True)
+    x_min, x_max = 3e-4, 1e-1
+    y_min, y_max = 8e-1, 2.5e2
 
-    cmap = ListedColormap(["white", "#b7d8ff"])
-    image = ax.imshow(
-        grid,
-        origin="lower",
-        aspect="auto",
-        interpolation="nearest",
-        cmap=cmap,
-        vmin=0.0,
-        vmax=1.0,
-    )
+    mchirps_array = np.asarray(mchirps, dtype=float)
+    distances_kpc = np.asarray(distances, dtype=float) * 1e3
+    max_distance_kpc = np.full(len(mchirps), np.nan, dtype=float)
+
+    for idx in range(len(mchirps)):
+        candidate_rows = np.flatnonzero(grid[:, idx] > 0)
+        if candidate_rows.size:
+            max_distance_kpc[idx] = distances_kpc[candidate_rows[-1]]
+
+    valid = ~np.isnan(max_distance_kpc)
+    x_values = mchirps_array[valid]
+    y_values = max_distance_kpc[valid]
+
+    ax.fill_between(x_values, y_min, y_values, color="#b7d8ff", alpha=0.45, zorder=1)
+    ax.plot(x_values, y_values, color="#1f5aa6", linewidth=2.2, zorder=2)
 
     ax.set_title("Candidate Distribution", pad=10, fontsize=14)
     ax.set_xlabel(r"Chirp mass $M_c$", fontsize=12)
-    ax.set_ylabel(r"Distance $d_L$ (Mpc)", fontsize=12)
-
-    x_tick_count = min(5, len(mchirps))
-    y_tick_count = min(5, len(distances))
-    x_ticks = np.linspace(0, len(mchirps) - 1, num=x_tick_count, dtype=int)
-    y_ticks = np.linspace(0, len(distances) - 1, num=y_tick_count, dtype=int)
-    x_ticks = np.unique(x_ticks)
-    y_ticks = np.unique(y_ticks)
-
-    ax.set_xticks(x_ticks, labels=[f"{mchirps[idx]:.0e}" for idx in x_ticks])
-    ax.set_yticks(y_ticks, labels=[f"{distances[idx]:.3f}" for idx in y_ticks])
+    ax.set_ylabel(r"Distance $d_L$ (kpc)", fontsize=12)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.xaxis.set_major_locator(LogLocator(base=10.0))
+    ax.xaxis.set_major_formatter(LogFormatterMathtext(base=10.0))
+    ax.xaxis.set_minor_locator(LogLocator(base=10.0, subs=np.arange(2, 10) * 0.1))
+    ax.xaxis.set_minor_formatter(NullFormatter())
 
     ax.tick_params(axis="x", rotation=0, labelsize=10, direction="in", top=True)
     ax.tick_params(axis="y", labelsize=10, direction="in", right=True)
@@ -102,11 +106,6 @@ def plot_grid(grid: np.ndarray, mchirps: list[float], distances: list[float], ou
 
     for spine in ax.spines.values():
         spine.set_linewidth(1.0)
-
-    cbar = fig.colorbar(image, ax=ax, fraction=0.04, pad=0.03, ticks=[0, 1])
-    cbar.ax.set_yticklabels(["No", "Yes"])
-    cbar.set_label("Candidate", rotation=90, labelpad=10, fontsize=11)
-    cbar.ax.tick_params(labelsize=10)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -120,7 +119,7 @@ def main() -> int:
         print(f"No existe el CSV: {csv_path}", file=sys.stderr)
         return 1
 
-    output_path = args.output.resolve() if args.output else csv_path.with_name(f"{csv_path.stem}_candidate_grid.png")
+    output_path = args.output.resolve() if args.output else csv_path.with_name(f"{csv_path.stem}_grid.png")
 
     try:
         grid, mchirps, distances = load_grid(csv_path)

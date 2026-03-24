@@ -70,15 +70,16 @@ else
     cpu_count=1
 fi
 
-# Auto-cap workers: never exceed requested, CPU count, or number of SFT jobs
+# Auto-cap workers: never exceed requested, 2x CPU count, or number of SFT jobs
 workers=$num_threads
-if (( workers > cpu_count )); then workers=$cpu_count; fi
+max_workers=$((2 * cpu_count))
+if (( workers > max_workers )); then workers=$max_workers; fi
 if (( workers > full_sfts )); then workers=$full_sfts; fi
 if (( workers < 1 )); then workers=1; fi
 
 if [[ "$sft_verbose" == "1" ]]; then
     echo "duration=${duration}s, Tseg=${Tseg}s, full_sfts=${full_sfts}, remainder=${remainder}s"
-    echo "requested_threads=${num_threads}, cpu_count=${cpu_count}, workers=${workers}"
+    echo "requested_threads=${num_threads}, cpu_count=${cpu_count}, max_workers=${max_workers}, workers=${workers}"
 fi
 
 # -------------------- SPLIT WORK BY SFT COUNT --------------------
