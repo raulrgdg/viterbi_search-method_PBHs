@@ -1,5 +1,5 @@
 # Condor entrypoint for candidate search:
-# job_search.sub -> ../bin/run_search.sh -> src/search_candidate.py
+# job_search.sub -> /bin/bash ../bin/run_search.sh -> src/search_candidate.py
 executable = /bin/bash
 
 n_jobs=1

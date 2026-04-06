@@ -56,6 +56,9 @@ DEFAULT_FRAME_LENGTH = 4096
 DEFAULT_NUM_FRAMES = 8
 DEFAULT_CHANNEL_NAME = "H1:GWOSC-4KHZ_R1_STRAIN"
 DEFAULT_OUTPUT_ROOT = str(INPUTS_O3_DATA_DIR)
+DEFAULT_PACKS = sorted(int(key.split("pack")[1]) for key in O3_WINDOWS)
+DEFAULT_N_JOBS = 1
+DEFAULT_JOB_ID = 0
 
 
 def download_o3_real_data(
@@ -167,7 +170,7 @@ def download_o3_packs(packs: list[int] | None = None):
                 f"Packs disponibles: {sorted(int(key.split('pack')[1]) for key in O3_WINDOWS)}"
             )
 
-        output_dir = os.path.join(DEFAULT_OUTPUT_ROOT, f"O3b-pack{pack}-{DEFAULT_FS_TARGET}HZ")
+        output_dir = os.path.join(DEFAULT_OUTPUT_ROOT, f"O3b-pack{pack}")
         print(f"[{index}/{total_packs}] Descargando O3b-pack{pack} -> {output_dir}", flush=True)
         generated_by_pack[pack] = download_o3_real_data(
             input_dir=output_dir,
@@ -183,6 +186,26 @@ def download_o3_packs(packs: list[int] | None = None):
     return generated_by_pack
 
 
+def split_packs_for_job(packs, base_jobs, job_id):
+    """
+    Reparte packs entre exactamente `base_jobs` jobs.
+    Los primeros `remainder` jobs reciben un pack extra.
+    """
+    if base_jobs <= 0:
+        raise ValueError("base_jobs debe ser > 0")
+
+    npacks = len(packs)
+    packs_per_job, remainder = divmod(npacks, base_jobs)
+    total_jobs = base_jobs
+
+    if job_id < 0 or job_id >= total_jobs:
+        raise ValueError(f"job_id debe estar en [0, {total_jobs - 1}]")
+
+    start = job_id * packs_per_job + min(job_id, remainder)
+    end = start + packs_per_job + (1 if job_id < remainder else 0)
+    return packs[start:end], packs_per_job, remainder, total_jobs
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Download O3 packs into inputs/O3_data.")
     parser.add_argument(
@@ -191,6 +214,8 @@ def parse_args():
         default="all",
         help='Lista de packs separada por comas o "all". Ejemplo: 1,2,3',
     )
+    parser.add_argument("--n-jobs", type=int, default=DEFAULT_N_JOBS)
+    parser.add_argument("--job-id", type=int, default=DEFAULT_JOB_ID)
     return parser.parse_args()
 
 
@@ -203,8 +228,33 @@ def parse_pack_selection(raw_packs: str) -> list[int] | None:
 
 def main():
     args = parse_args()
-    packs = parse_pack_selection(args.packs)
-    generated_by_pack = download_o3_packs(packs)
+    requested_packs = parse_pack_selection(args.packs)
+    selected_packs = DEFAULT_PACKS if requested_packs is None else requested_packs
+    assigned_packs, packs_per_job, remainder, total_jobs = split_packs_for_job(
+        selected_packs,
+        args.n_jobs,
+        args.job_id,
+    )
+    if not assigned_packs:
+        print(
+            f"Job sin packs asignados: job_id={args.job_id}, n_jobs={args.n_jobs}. "
+            "No hay trabajo que hacer.",
+            flush=True,
+        )
+        return
+
+    print(
+        f"Reparto descarga O3: npacks={len(selected_packs)}, njobs={args.n_jobs}, "
+        f"packs_por_job={packs_per_job}, resto={remainder}, total_jobs_reales={total_jobs}",
+        flush=True,
+    )
+    print(
+        f"Job actual: job_id={args.job_id}/{total_jobs - 1}, packs_asignados={len(assigned_packs)}, "
+        f"primer_pack={assigned_packs[0]}, ultimo_pack={assigned_packs[-1]}",
+        flush=True,
+    )
+
+    generated_by_pack = download_o3_packs(assigned_packs)
     print(
         f"Descarga completada: {len(generated_by_pack)} pack(s) en {DEFAULT_OUTPUT_ROOT}",
         flush=True,

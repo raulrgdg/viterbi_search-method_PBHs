@@ -1,9 +1,9 @@
 # Condor entrypoint for noise generation:
-# job_noise.sub -> ../bin/run_noise.sh -> src/noise-track_new-map-data_generation.py
-executable = ../bin/run_noise.sh
+# job_noise.sub -> /bin/bash ../bin/run_noise.sh -> src/noise-track_new-map-data_generation.py
+executable = /bin/bash
 
 n_jobs=5
-arguments = $(n_jobs) $(Process)
+arguments = ../bin/run_noise.sh $(n_jobs) $(Process)
 
 log = ../outputs/logs/noise_generation.$(ClusterId).log
 output = ../outputs/logs/noise_generation.$(ClusterId).$(Process).out

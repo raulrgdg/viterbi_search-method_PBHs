@@ -1,47 +1,69 @@
+import argparse
 import os
 import tempfile
-import argparse
 import time
+
 import numpy as np
+import soapcw as soap
+
+from algortihm_final import (
+    VITERBI_TRANSITION_LOG_PROBS,
+    build_remap_geometry,
+    load_sfts,
+    preprocess_data,
+    remap_CShuster_to_fm83,
+)
+from download_O3_data import DEFAULT_OUTPUT_ROOT, O3_WINDOWS
 from make_framecache_final import generate_framecache_raw_strain
 from make_SFT_function import run_make_sfts_script
-from download_O3_data import DEFAULT_OUTPUT_ROOT, O3_WINDOWS
-from algortihm_final import VITERBI_TRANSITION_LOG_PROBS, build_remap_geometry, load_sfts, preprocess_data, remap_CShuster_to_fm83
 from pipeline_paths import BIN_DIR
-from power_metric_prueba import search_candidates_in_memory
-from search_candidate import append_search_result_row, mark_search_results_job_done, merge_search_results_if_ready, search_results_output_path
-import soapcw as soap
+from power_metric_prueba import (
+    POWER_NOISE_CSV_NAME,
+    compute_noise_total_power_rows_in_memory,
+    search_candidates_in_memory,
+)
+from search_candidate import (
+    append_search_result_row,
+    append_csv_rows,
+    csv_shard_output_path,
+    mark_search_results_job_done,
+    mark_csv_shard_done,
+    merge_csv_shards_if_ready,
+    merge_search_results_if_ready,
+    search_results_output_path,
+    split_targets_for_job,
+    write_csv_rows,
+    write_search_results_rows,
+)
 
 BASH_SCRIPT_PATH = BIN_DIR / "make_SFT-final-v2.sh"
 
-# Case: N=noise
+SEARCH = True
 
-DEFAULT_PACKS = list(range(1, 109))
-DEFAULT_TSFT_VALUES = [2, 3, 4, 5, 6, 9, 12, 15, 21, 29, 39, 54, 74, 101, 132, 181, 248, 340] #quite 1 !
-REQUEST_CPUS_PER_JOB = 16
-DEFAULT_N_JOBS = 5
+PACKS = list(range(1, 109))
+TSFT_VALUES = [2, 3, 4, 5, 7, 10, 13, 18, 25, 35, 47, 63, 88]  # tsft optimum for nsigma=>0.99, mchirp [5e-4,1e-1]
+REQUEST_CPUS_PER_JOB = 8
+DEFAULT_N_JOBS = 108
 DEFAULT_JOB_ID = 0
 
-# Depend on the number of CPUs requested. See strong_scale_test
 MAKE_SFT_THREADS = 256
 
-# Data parameters
 FRAME_LENGTH = 4096
 NUM_FRAMES = 8
 FMIN = 61.1
-FMAX = 126.8
+FMAX = 127.2
 FBAND = FMAX - FMIN
 CHANNEL_NAME = "H1:GWOSC-4KHZ_R1_STRAIN"
 WINDOWTYPE = "rectangular"
 IFO = "H1"
 FS_TARGET = 512
-SFT_VERBOSE = False
-PIPELINE_VERBOSE = False
+SFT_VERBOSE = True
+PIPELINE_VERBOSE = True
 
 
 def get_local_o3_pack_dir(pack):
     """Return the local directory containing a pre-downloaded O3 pack."""
-    raw_data_dir = os.path.join(DEFAULT_OUTPUT_ROOT, f"O3b-pack{pack}-{FS_TARGET}HZ")
+    raw_data_dir = os.path.join(DEFAULT_OUTPUT_ROOT, f"O3b-pack{pack}")
     if not os.path.isdir(raw_data_dir):
         raise FileNotFoundError(
             f"No existe el pack O3 descargado en disco: {raw_data_dir}. "
@@ -66,6 +88,13 @@ def log_verbose(message):
         print(message, flush=True)
 
 
+def normalize_injected_field(result):
+    """Store the injected flag as 1/0 in the final CSV row."""
+    normalized = dict(result)
+    normalized["injected"] = 1 if bool(result.get("injected")) else 0
+    return normalized
+
+
 def build_tsft_configs(tsft_values):
     """Precompute per-tsft metadata reused for every pack."""
     total_duration = NUM_FRAMES * FRAME_LENGTH
@@ -74,13 +103,38 @@ def build_tsft_configs(tsft_values):
             "tsft": tsft,
             "nbins": round(FBAND / (1 / tsft)),
             "nsft": int(total_duration / tsft),
-            "remap_geometry": build_remap_geometry(tsft, FMIN, round(FBAND / (1 / tsft))),
+            "remap_geometry": build_remap_geometry(
+                tsft,
+                FMIN,
+                round(FBAND / (1 / tsft)),
+            ),
         }
         for tsft in tsft_values
     ]
 
 
+def power_output_path(n_jobs=1, job_id=0):
+    return csv_shard_output_path(POWER_NOISE_CSV_NAME, n_jobs=n_jobs, job_id=job_id)
+
+
+def append_power_rows(rows, output_csv):
+    append_csv_rows(rows, output_csv, ["pack", "tsft", "total_power"])
+
+
+def write_power_rows(rows, output_csv):
+    write_csv_rows(rows, output_csv, ["pack", "tsft", "total_power"])
+
+
+def mark_power_job_done(n_jobs, job_id):
+    mark_csv_shard_done(POWER_NOISE_CSV_NAME, n_jobs, job_id)
+
+
+def merge_power_results_if_ready(total_jobs):
+    merge_csv_shards_if_ready(POWER_NOISE_CSV_NAME, ["pack", "tsft", "total_power"], total_jobs)
+
+
 def process_single_tsft(tsft_config, t_start, t_end, framecache_path_raw_strain, num_threads_per_worker):
+    """Build SFTs for one Tsft and return the in-memory search payload."""
     tsft = tsft_config["tsft"]
 
     with tempfile.TemporaryDirectory(prefix=f"sft-tsft{tsft}-") as sft_output_path:
@@ -127,12 +181,17 @@ def process_single_tsft(tsft_config, t_start, t_end, framecache_path_raw_strain,
         one_tracks_ng = soap.single_detector(VITERBI_TRANSITION_LOG_PROBS, cshuster_remap, lookup_table=None)
         track_index = np.asarray(one_tracks_ng.vit_track, dtype=int)
         track_freq = np.asarray(x_remap[track_index], dtype=float)
-    return {"tsft": tsft, "track_index": track_index, "track_freq": track_freq, "power": np.asarray(cshuster_remap, dtype=float)}
+    return {
+        "tsft": tsft,
+        "track_index": track_index,
+        "track_freq": track_freq,
+        "power": np.asarray(cshuster_remap, dtype=float),
+    }
 
 
 def process_single_pack(pack, tsft_values, num_threads_per_worker):
-    run_label = O3_WINDOWS[f"O3b-pack{pack}"]
-    t_start, t_end = run_label
+    """Process one O3 pack and return either search or power rows."""
+    t_start, t_end = O3_WINDOWS[f"O3b-pack{pack}"]
     tsft_configs = build_tsft_configs(tsft_values)
     raw_data_dir = get_local_o3_pack_dir(pack)
     log_verbose(f"Usando datos O3 ya descargados para pack {pack}: {raw_data_dir}")
@@ -150,29 +209,24 @@ def process_single_pack(pack, tsft_values, num_threads_per_worker):
     for tsft_config in tsft_configs:
         tsft = tsft_config["tsft"]
         log_verbose(f"[pack {pack}] Iniciando Tsft={tsft}")
-        tsft_results.append(process_single_tsft(tsft_config=tsft_config, t_start=t_start, t_end=t_end, framecache_path_raw_strain=framecache_path_raw_strain, num_threads_per_worker=num_threads_per_worker))
+        tsft_results.append(
+            process_single_tsft(
+                tsft_config=tsft_config,
+                t_start=t_start,
+                t_end=t_end,
+                framecache_path_raw_strain=framecache_path_raw_strain,
+                num_threads_per_worker=num_threads_per_worker,
+            )
+        )
         log_verbose(f"[pack {pack}] Tsft completado: {tsft}")
-    return search_candidates_in_memory(mchirp=None, distance=None, pack=pack, noise=True, tsft_results=tsft_results)
+    if SEARCH:
+        return search_candidates_in_memory(mchirp=None, distance=None, pack=pack, noise=True, tsft_results=tsft_results)
+    return compute_noise_total_power_rows_in_memory(pack=pack, tsft_results=tsft_results, n_windows=1)
 
 
 def split_packs_for_job(packs, base_jobs, job_id):
-    """
-    Reparte packs entre exactamente `base_jobs` jobs.
-    Los primeros `remainder` jobs reciben un pack extra.
-    """
-    if base_jobs <= 0:
-        raise ValueError("base_jobs debe ser > 0")
-
-    npacks = len(packs)
-    packs_per_job, remainder = divmod(npacks, base_jobs)
-    total_jobs = base_jobs
-
-    if job_id < 0 or job_id >= total_jobs:
-        raise ValueError(f"job_id debe estar en [0, {total_jobs - 1}]")
-
-    start = job_id * packs_per_job + min(job_id, remainder)
-    end = start + packs_per_job + (1 if job_id < remainder else 0)
-    return packs[start:end], packs_per_job, remainder, total_jobs
+    """Thin wrapper kept for readability in the noise pipeline."""
+    return split_targets_for_job(packs, base_jobs, job_id)
 
 
 def parse_args():
@@ -184,37 +238,74 @@ def parse_args():
     return parser.parse_args()
 
 
+def initialize_output_csv(search_enabled, n_jobs, job_id):
+    if search_enabled:
+        return search_results_output_path(injected=False, n_jobs=n_jobs, job_id=job_id)
+    return power_output_path(n_jobs=n_jobs, job_id=job_id)
+
+
+def write_empty_output(search_enabled, output_csv):
+    if search_enabled:
+        write_search_results_rows([], output_csv)
+    else:
+        write_power_rows([], output_csv)
+
+
+def append_result_rows(search_enabled, result, output_csv):
+    if search_enabled:
+        append_search_result_row(normalize_injected_field(result), output_csv)
+    else:
+        append_power_rows(result, output_csv)
+
+
+def finalize_noise_shard(search_enabled, total_jobs, job_id):
+    if search_enabled:
+        mark_search_results_job_done(injected=False, n_jobs=total_jobs, job_id=job_id)
+        merge_search_results_if_ready(injected=False, total_jobs=total_jobs)
+    else:
+        mark_power_job_done(n_jobs=total_jobs, job_id=job_id)
+        merge_power_results_if_ready(total_jobs=total_jobs)
+
+
+def print_job_distribution(total_packs, n_jobs, packs_per_job, remainder, total_jobs):
+    print(
+        f"Reparto jobs: npacks={total_packs}, njobs={n_jobs}, "
+        f"packs_por_job={packs_per_job}, resto={remainder}, total_jobs_reales={total_jobs}",
+        flush=True,
+    )
+
+
+def print_current_job(job_id, total_jobs, packs, num_threads_per_worker):
+    print(
+        f"Job actual: job_id={job_id}/{total_jobs - 1}, packs_asignados={len(packs)}, "
+        f"primer_pack={packs[0]}, ultimo_pack={packs[-1]}, request_cpus={REQUEST_CPUS_PER_JOB}, "
+        f"make_sft_threads={num_threads_per_worker}",
+        flush=True,
+    )
+
+
 def main():
-    # 1) Configuracion base del job actual.
     args = parse_args()
-    packs = DEFAULT_PACKS
-    tsft_values = DEFAULT_TSFT_VALUES
+    packs = PACKS
+    tsft_values = TSFT_VALUES
     num_threads_per_worker = MAKE_SFT_THREADS
 
-    # 2) Primera division: packs entre jobs (floor + resto en el ultimo job).
     packs, packs_per_job, remainder, total_jobs = split_packs_for_job(packs, args.n_jobs, args.job_id)
+    output_csv = initialize_output_csv(SEARCH, args.n_jobs, args.job_id)
     if not packs:
+        write_empty_output(SEARCH, output_csv)
+
         print(
             f"Job sin packs asignados: job_id={args.job_id}, n_jobs={args.n_jobs}. "
-            "No hay trabajo que hacer."
+            "Shard vacio generado."
         )
+        if args.n_jobs > 1:
+            finalize_noise_shard(SEARCH, total_jobs, args.job_id)
         return
 
-    print(
-        f"Reparto jobs: npacks={len(DEFAULT_PACKS)}, njobs={args.n_jobs}, "
-        f"packs_por_job={packs_per_job}, resto={remainder}, total_jobs_reales={total_jobs}"
-        , flush=True
-    )
-    print(
-        f"Job actual: job_id={args.job_id}/{total_jobs - 1}, packs_asignados={len(packs)}, "
-        f"primer_pack={packs[0]}, ultimo_pack={packs[-1]}, request_cpus={REQUEST_CPUS_PER_JOB}, "
-        f"make_sft_threads={num_threads_per_worker}"
-        , flush=True
-    )
+    print_job_distribution(len(PACKS), args.n_jobs, packs_per_job, remainder, total_jobs)
+    print_current_job(args.job_id, total_jobs, packs, num_threads_per_worker)
 
-    output_csv = search_results_output_path(injected=False, n_jobs=args.n_jobs, job_id=args.job_id)
-    # 3) Procesado secuencial de packs por job.
-    # IMPORTANTE: cada make_SFT ya paraleliza internamente (hasta los CPUs del nodo).
     # Evitamos lanzar varios packs a la vez para no sobrecargar el job.
     completed_packs = 0
     total_assigned_packs = len(packs)
@@ -227,7 +318,7 @@ def main():
         )
         try:
             result = process_single_pack(pack, tsft_values, num_threads_per_worker)
-            append_search_result_row(result, output_csv)
+            append_result_rows(SEARCH, result, output_csv)
         except Exception as exc:
             update_pack_progress(
                 completed_packs,
@@ -241,8 +332,7 @@ def main():
         final_status = "done" if completed_packs == total_assigned_packs else "ok"
         update_pack_progress(completed_packs, total_assigned_packs, status=final_status)
     if args.n_jobs > 1:
-        mark_search_results_job_done(injected=False, n_jobs=total_jobs, job_id=args.job_id)
-        merge_search_results_if_ready(injected=False, total_jobs=total_jobs)
+        finalize_noise_shard(SEARCH, total_jobs, args.job_id)
 
 
 if __name__ == "__main__":

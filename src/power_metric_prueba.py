@@ -3,17 +3,93 @@ import csv
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
-from fit_per_window_prueba_new_recorte_v2 import fit_slope_candidate_blocks, expansion_block, fit_slope_candidate_significant__blocks
+from fit_per_window_prueba_new_recorte_v2 import (
+    _default_mass_grid,
+    fit_slope_candidate_blocks,
+    fit_slope_candidate_significant__blocks,
+    fit_slope_windows,
+    expansion_block,
+)
 from pipeline_paths import OUTPUTS_PLOTS_DIR, OUTPUTS_REPORTS_DIR, ensure_dir, get_pack_product_dir
 
 PLOTS_CANDIDATE_DIR = ensure_dir(OUTPUTS_PLOTS_DIR / "plots-candidate")
 REPORTS_DIR = ensure_dir(OUTPUTS_REPORTS_DIR)
 DEBUG = False
+POWER_METRIC_VERBOSE = False
 SIGNIFICANT_BLOCK_Z_THRESHOLD = 7.6869 # 90% percentil
 TOP_N_BLOCKS = 2
 POWER_THRESHOLD_K = 0.5
 LINEAR_THRESHOLD_SLOPE = 255.5
 LINEAR_THRESHOLD_INTERCEPT = -0.671286
+POWER_NOISE_CSV_NAME = "power_noise_result_2-test-version2.csv"
+noise_metrics_path = REPORTS_DIR / "noise_metrics.csv"
+
+
+def log_verbose(message):
+    if POWER_METRIC_VERBOSE:
+        print(message, flush=True)
+
+
+def _log_third_check_diagnostics(track, candidate_blocks, tsft, flag, mchirp, distance, stage_label):
+    """Emit per-window third-check diagnostics without changing selection behavior."""
+    if not POWER_METRIC_VERBOSE:
+        return
+
+    if track is None or len(track) == 0:
+        log_verbose(f"[third-check:{stage_label}] track vacío, sin diagnóstico.")
+        return
+
+    distance_label = "noise" if distance is None else f"{distance:.3f}"
+    log_verbose(
+        f"[third-check:{stage_label}] mchirp={mchirp}, distance={distance_label}, "
+        f"tsft={tsft}, flag={flag}, n_blocks={len(candidate_blocks)}"
+    )
+
+    mass_samples = _default_mass_grid(include_negative=True)
+    y = np.asarray(track, dtype=float)
+
+    for block_idx, block in enumerate(candidate_blocks):
+        if len(block) < 2:
+            continue
+        start, end = int(block[0]), int(block[1])
+        ratio = float(block[2]) if len(block) > 2 else float("nan")
+        start = max(0, start)
+        end = min(len(y), end)
+        if end <= start:
+            log_verbose(
+                f"[third-check:{stage_label}] block={block_idx} inválido: start={start}, end={end}"
+            )
+            continue
+
+        block_track = y[start:end]
+        n_windows = min(len(block_track), 8 if flag else 1)
+        starts_l, ends_l, best_slope, best_mass, best_nmse = fit_slope_windows(
+            track=block_track,
+            tsft=tsft,
+            n_windows=n_windows,
+            mass_samples=mass_samples,
+        )
+
+        valid_mask = np.asarray(best_mass, dtype=float) >= 0
+        log_verbose(
+            f"[third-check:{stage_label}] block={block_idx}, ratio={ratio:.6f}, "
+            f"samples=[{start}:{end}], duration={(end-start)*tsft:.2f}s, "
+            f"n_windows={n_windows}, valid_windows={int(np.sum(valid_mask))}/{len(valid_mask)}"
+        )
+
+        for win_idx, (ws, we, mass, nmse, slope) in enumerate(
+            zip(starts_l, ends_l, best_mass, best_nmse, best_slope)
+        ):
+            g0 = start + int(ws)
+            g1 = start + int(we)
+            local_track = y[g0:g1]
+            delta_f = float(local_track[-1] - local_track[0]) if len(local_track) > 1 else 0.0
+            trend = "down" if delta_f < 0 else "up" if delta_f > 0 else "flat"
+            log_verbose(
+                f"  window={win_idx}, idx=[{g0}:{g1}], t=[{g0*tsft:.2f},{g1*tsft:.2f}]s, "
+                f"df={delta_f:.6e} ({trend}), mass={float(mass):.6e}, "
+                f"slope={float(slope):.6e}, nmse={float(nmse):.6e}, valid={bool(mass >= 0)}"
+            )
 
 
 def build_index_track_path(tsft, pack, noise, mchirp=None, distance_str=None):
@@ -132,7 +208,7 @@ def window_power_metric(track, data, n_windows, Nsft):
     powers = np.add.reduceat(point_power, starts)
 
     total_power = np.sum(powers)
-    print(f"Total power across all windows normalized by Nsft: {total_power/Nsft:.6e}")
+    log_verbose(f"Total power across all windows normalized by Nsft: {total_power/Nsft:.6e}")
     if n_windows == 1:
         return total_power
     
@@ -197,28 +273,16 @@ def select_top_windows(starts, ends, fractions, n_top, k):
     threshold = ratio_median + k * mad
     mask = fractions > threshold
 
-    blocks = []
-    i = 0
-    n = len(mask)
-    while i < n:
-        if not mask[i]:
-            i += 1
-            continue
-        j = i
-        while j + 1 < n and mask[j + 1]:
-            j += 1
+    windows = [
+        (int(starts[i]), int(ends[i]), float(fractions[i]), int(i))
+        for i in range(len(mask))
+        if mask[i]
+    ]
 
-        block_start = starts[i]
-        block_end = ends[j]
-        block_ratio = float(np.mean(fractions[i : j + 1]))
-        blocks.append((block_start, block_end, block_ratio, i))
-        i = j + 1
-
-    if not blocks:
+    if not windows:
         return [], False
 
-    blocks.sort(key=lambda x: x[2], reverse=True)
-    windows = blocks
+    windows.sort(key=lambda x: x[2], reverse=True)
 
     best_idx = windows[0][3]
     flag, score = significant_block(
@@ -226,12 +290,8 @@ def select_top_windows(starts, ends, fractions, n_top, k):
         best_idx,
         z_threshold=SIGNIFICANT_BLOCK_Z_THRESHOLD,
     )
-    csv_path = REPORTS_DIR / "signal_significant_block-6-test.csv"
-    with csv_path.open("a", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow([flag, score])
 
-    print(
+    log_verbose(
         f"Best window significance: idx={best_idx}, "
         f"score={score:.4f}, flag={flag}"
     )
@@ -247,11 +307,11 @@ def select_top_windows(starts, ends, fractions, n_top, k):
 
 def _print_window_power_summary(starts, ends, powers, fractions, opt_tsft):
     """Print per-window power diagnostics for a selected tsft."""
-    print(f"Power por ventana (tsft={opt_tsft} s):")
+    log_verbose(f"Power por ventana (tsft={opt_tsft} s):")
     for s, e, p, f in zip(starts, ends, powers, fractions):
         t0 = s * opt_tsft
         t1 = e * opt_tsft
-        print(f"[{t0}:{t1}] power={p:.6e} frac={f:.4f}")
+        log_verbose(f"[{t0}:{t1}] power={p:.6e} frac={f:.4f}")
 
 
 def _select_optimal_block(best_blocks, opt_tsft):
@@ -299,21 +359,21 @@ def _plot_optimal_block(track, block, noise, pack, opt_tsft, mchirp, distance_st
 
 def power_noise_track(n_windows, tsft_list, packs_list):
     """Compute and persist noise track power metrics for all packs/tsfts."""
-    csv_path = REPORTS_DIR / "power_noise_result_2-test-version2.csv"
+    csv_path = REPORTS_DIR / POWER_NOISE_CSV_NAME
     with csv_path.open("a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["pack", "tsft", "total_power"])
 
     for pack in packs_list:
         for tsft in tsft_list:
-            print(f"Procesando pack {pack} con tsft={tsft}...")
+            log_verbose(f"Procesando pack {pack} con tsft={tsft}...")
             path_track = build_index_track_path(tsft=tsft, pack=pack, noise=True)
             path_data = build_power_path(tsft=tsft, pack=pack, noise=True)
             
             track = load_track_txt(path_track)
             data = load_spectrogram_npy(path_data, expected_time_len=len(track))
             Nsft = len(track)
-            print(f'For Tsftt={tsft}, nsft={Nsft}')
+            log_verbose(f'For Tsftt={tsft}, nsft={Nsft}')
 
             total_power = window_power_metric(track, data, n_windows=n_windows, Nsft=Nsft)
             with csv_path.open("a", newline="") as f:
@@ -321,13 +381,22 @@ def power_noise_track(n_windows, tsft_list, packs_list):
                 writer.writerow([pack, tsft, total_power])
     return csv_path
 
+
+def compute_noise_total_power_rows_in_memory(pack, tsft_results, n_windows=1):
+    """Compute total power rows from in-memory noise products for one pack."""
+    rows = []
+    for tsft_result in tsft_results:
+        tsft = int(tsft_result["tsft"])
+        track = normalize_track_array(tsft_result["track_index"])
+        data = normalize_spectrogram_array(tsft_result["power"], expected_time_len=len(track))
+        nsft = len(track)
+        total_power = window_power_metric(track, data, n_windows=n_windows, Nsft=nsft)
+        rows.append({"pack": int(pack), "tsft": tsft, "total_power": float(total_power)})
+    return rows
+
 def first_power_check(mchirp, distance_str, noise, tsft_list, pack):
     """Select the best tsft using signal-to-noise power ratio against noise stats."""
-
-    csv_path = REPORTS_DIR / "noise_metrics_2-test.csv"
-    if not csv_path.exists():
-        csv_path = REPORTS_DIR / "noise_metrics_2-test-version2.csv"
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(noise_metrics_path)
     df["tsft"] = df["tsft"].astype(int)
     mean_noise_power_map = dict(zip(df["tsft"], df["mean_total_power"], strict=False))
     std_noise_power_map = dict(zip(df["tsft"], df["std_total_power"], strict=False))
@@ -340,7 +409,7 @@ def first_power_check(mchirp, distance_str, noise, tsft_list, pack):
     found_above_threshold = False
 
     for tsft in tsft_list:
-        print(f"Procesando pack {pack} con tsft={tsft}...")
+        log_verbose(f"Procesando pack {pack} con tsft={tsft}...")
         path_index_track = build_index_track_path(
             tsft=tsft, pack=pack, noise=noise, mchirp=mchirp, distance_str=distance_str
         )
@@ -369,18 +438,18 @@ def first_power_check(mchirp, distance_str, noise, tsft_list, pack):
             best_n_sigma_above_threshold = n_sigma
             opt_nsigma = n_sigma
             opt_tsft = tsft
-            print(
+            log_verbose(
                 f"Nuevo mejor n_sigma > {n_sigma_threshold:.3f}: "
                 f"n_sigma={opt_nsigma:.6f}, tsft={opt_tsft}"
             )
         else:
-            print(
+            log_verbose(
                 f"tsft={tsft}: n_sigma={n_sigma:.6f}. "
                 f"Óptimo actual -> tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}"
             )
 
     if not found_above_threshold:
-        print(
+        log_verbose(
             f" !!!!! No se encontró ningún tsft con n_sigma > {n_sigma_threshold:.3f}. "
             f"Se toma el mayor n_sigma disponible: tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}. !!!!!"
         )
@@ -397,11 +466,11 @@ def second_power_check(path_track, path_data, opt_tsft, n_windows):
     _print_window_power_summary(starts, ends, powers, fractions, opt_tsft)
 
     blocks, flag = select_top_windows(starts, ends, fractions, n_top=TOP_N_BLOCKS, k=POWER_THRESHOLD_K)
-    print("Bloques con más contribución:")
+    log_verbose("Bloques con más contribución:")
     for s, e, f in blocks:
         t0 = s * opt_tsft
         t1 = e * opt_tsft
-        print(f"[{t0}:{t1}] frac={f:.4f} del total power track")
+        log_verbose(f"[{t0}:{t1}] frac={f:.4f} del total power track")
 
     return blocks, flag
 
@@ -416,11 +485,11 @@ def second_power_check_in_memory(track, data, opt_tsft, n_windows):
     _print_window_power_summary(starts, ends, powers, fractions, opt_tsft)
 
     blocks, flag = select_top_windows(starts, ends, fractions, n_top=TOP_N_BLOCKS, k=POWER_THRESHOLD_K)
-    print("Bloques con más contribución:")
+    log_verbose("Bloques con más contribución:")
     for s, e, f in blocks:
         t0 = s * opt_tsft
         t1 = e * opt_tsft
-        print(f"[{t0}:{t1}] frac={f:.4f} del total power track")
+        log_verbose(f"[{t0}:{t1}] frac={f:.4f} del total power track")
 
     return blocks, flag
 
@@ -434,11 +503,11 @@ def second_fit_check(path_track, path_data, opt_tsft, n_windows):
     _print_window_power_summary(starts, ends, powers, fractions, opt_tsft)
 
     blocks, _ = select_top_windows(starts, ends, fractions, n_top=TOP_N_BLOCKS, k=POWER_THRESHOLD_K)
-    print("Bloques con más contribución:")
+    log_verbose("Bloques con más contribución:")
     for s, e, f in blocks:
         t0 = s * opt_tsft
         t1 = e * opt_tsft
-        print(f"[{t0}:{t1}] frac={f:.4f} del total power track")
+        log_verbose(f"[{t0}:{t1}] frac={f:.4f} del total power track")
 
     return blocks
 
@@ -558,12 +627,10 @@ def _build_search_result(pack, mchirp, distance, noise, candidate, nmse, nsigma,
 
 
 def _load_noise_stats():
-    csv_path = REPORTS_DIR / "noise_metrics_2-test.csv"
-    if not csv_path.exists():
-        csv_path = REPORTS_DIR / "noise_metrics_2-test-version2.csv"
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(noise_metrics_path)
     df["tsft"] = df["tsft"].astype(int)
     mean_noise_power_map = dict(zip(df["tsft"], df["mean_total_power"], strict=False))
+    print(mean_noise_power_map)
     std_noise_power_map = dict(zip(df["tsft"], df["std_total_power"], strict=False))
     return mean_noise_power_map, std_noise_power_map
 
@@ -598,12 +665,12 @@ def first_power_check_in_memory(tsft_results):
             best_n_sigma_above_threshold = n_sigma
             opt_nsigma = n_sigma
             opt_tsft = tsft
-            print(f"Nuevo mejor n_sigma > {n_sigma_threshold:.3f}: n_sigma={opt_nsigma:.6f}, tsft={opt_tsft}")
+            log_verbose(f"Nuevo mejor n_sigma > {n_sigma_threshold:.3f}: n_sigma={opt_nsigma:.6f}, tsft={opt_tsft}")
         else:
-            print(f"tsft={tsft}: n_sigma={n_sigma:.6f}. Óptimo actual -> tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}")
+            log_verbose(f"tsft={tsft}: n_sigma={n_sigma:.6f}. Óptimo actual -> tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}")
 
     if not found_above_threshold:
-        print(f" !!!!! No se encontró ningún tsft con n_sigma > {n_sigma_threshold:.3f}. Se toma el mayor n_sigma disponible: tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}. !!!!!")
+        log_verbose(f" !!!!! No se encontró ningún tsft con n_sigma > {n_sigma_threshold:.3f}. Se toma el mayor n_sigma disponible: tsft={opt_tsft}, n_sigma={opt_nsigma:.6f}. !!!!!")
 
     return opt_tsft, opt_nsigma, found_above_threshold
 
@@ -619,7 +686,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     n_windows = 1
     
     opt_tsft, opt_nsigma, found_above_threshold = first_power_check(mchirp=mchirp, distance_str=distance_str, noise=noise, tsft_list=tsft_list, pack=pack)
-    print(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
+    log_verbose(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
 
     # ------- Second Check
     n_windows = 8  # 4096s windows
@@ -635,7 +702,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     for block_start, block_end, ratio in top_blocks:
         t0 = block_start * opt_tsft
         t1 = block_end * opt_tsft
-        print(f"Analizando bloque [{t0}:{t1}] con contribución {ratio:.4f} del total power track")
+        log_verbose(f"Analizando bloque [{t0}:{t1}] con contribución {ratio:.4f} del total power track")
 
     path_freq_track = build_freq_track_path(tsft=opt_tsft, pack=pack, noise=noise, mchirp=mchirp, distance_str=distance_str)
     track = load_track_txt(path_freq_track)
@@ -648,6 +715,15 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
                 n_windows_per_block=1,
                 blocks_in_time=False,
                 )
+    _log_third_check_diagnostics(
+        track=track,
+        candidate_blocks=top_blocks,
+        tsft=opt_tsft,
+        flag=flag,
+        mchirp=mchirp,
+        distance=distance,
+        stage_label="post-initial-fit",
+    )
 
     # if not best_blocks:
     #     print("! No se encontraron bloques que ajusten el modelo en ventana de t=4096 seg, probando ventana  t=1024seg ")
@@ -661,7 +737,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     #             )
 
     if flag:
-        print("Bloque muy significativo, con alto nmse. Alta probabilidad de señal de alta masa: efímera pero potente")
+        log_verbose("Bloque muy significativo, con alto nmse. Alta probabilidad de señal de alta masa: efímera pero potente")
 
         best_blocks, significant_block = fit_slope_candidate_significant__blocks(
             track=track,
@@ -670,6 +746,15 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
             n_windows_per_block=8,
             blocks_in_time=False,
     )
+        _log_third_check_diagnostics(
+            track=track,
+            candidate_blocks=top_blocks,
+            tsft=opt_tsft,
+            flag=flag,
+            mchirp=mchirp,
+            distance=distance,
+            stage_label="significant-block-refit",
+        )
     # if not best_blocks:
     #     print("No se encontraron bloques candidatos en best_blocks")
     # else:
@@ -687,12 +772,21 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     #         )
 
     if not best_blocks:
+        _log_third_check_diagnostics(
+            track=track,
+            candidate_blocks=top_blocks,
+            tsft=opt_tsft,
+            flag=flag,
+            mchirp=mchirp,
+            distance=distance,
+            stage_label="fit-failure",
+        )
         print("Ningún bloque candidato pasó el Third check fit (probablemente por masa negativa o ajuste inválido). Fin de ejecución.")
         return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_third_fit_check")
 
     for i in range(len(best_blocks)):
         b = best_blocks[i] if isinstance(best_blocks, list) else best_blocks
-        print(
+        log_verbose(
             f"Mejor bloque: t_start={b['starts'][0]*opt_tsft:.2f}s, "
             f"t_end={b['ends'][-1]*opt_tsft:.2f}s, "
             f"best_slope={float(b['best_slope'][0]):.6e}, "
@@ -723,7 +817,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
         print("No fue posible expandir el bloque óptimo con los criterios actuales. Fin de ejecución.")
         return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_block_expansion")
 
-    print(
+    log_verbose(
         f"Bloque óptimo extendido: t_start={extended_optimal_block['block_start']*opt_tsft:.2f}s, "
         f"t_end={extended_optimal_block['block_end']*opt_tsft:.2f}s, "
         f"final_slope={float(extended_optimal_block.get('final_slope', extended_optimal_block['best_slope'][0])):.6e}, "
@@ -747,7 +841,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
     slope_eval = float(extended_optimal_block.get("final_slope", extended_optimal_block["best_slope"][0]))
     mass_eval = float(extended_optimal_block.get("final_mass", extended_optimal_block["best_mass"][0]))
 
-    print(
+    log_verbose(
         f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, "
         f"nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, "
         f"n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}"
@@ -771,7 +865,7 @@ def search_candidates(mchirp, distance, tsft_list, pack, noise):
         nmse_candidate_th=nsigma_candidate_th,
     )
     if candidate_passed:
-        print(
+        log_verbose(
             "El bloque extendido cumple el umbral lineal "
             f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
             f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}."
@@ -795,7 +889,7 @@ def search_candidates_in_memory(mchirp, distance, pack, noise, tsft_results):
     nmse_len_alpha = 1.0
 
     opt_tsft, opt_nsigma, found_above_threshold = first_power_check_in_memory(tsft_results)
-    print(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
+    log_verbose(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
 
     selected = next((item for item in tsft_results if int(item["tsft"]) == int(opt_tsft)), None)
     if selected is None:
@@ -809,22 +903,49 @@ def search_candidates_in_memory(mchirp, distance, pack, noise, tsft_results):
     for block_start, block_end, ratio in top_blocks:
         t0 = block_start * opt_tsft
         t1 = block_end * opt_tsft
-        print(f"Analizando bloque [{t0}:{t1}] con contribución {ratio:.4f} del total power track")
+        log_verbose(f"Analizando bloque [{t0}:{t1}] con contribución {ratio:.4f} del total power track")
 
     track = normalize_track_array(selected["track_freq"])
     best_blocks, significant_block = fit_slope_candidate_blocks(track=track, tsft=opt_tsft, candidate_blocks=top_blocks, flag=flag, n_windows_per_block=1, blocks_in_time=False)
+    _log_third_check_diagnostics(
+        track=track,
+        candidate_blocks=top_blocks,
+        tsft=opt_tsft,
+        flag=flag,
+        mchirp=mchirp,
+        distance=distance,
+        stage_label="post-initial-fit",
+    )
 
     if flag:
-        print("Bloque muy significativo, con alto nmse. Alta probabilidad de señal de alta masa: efímera pero potente")
+        log_verbose("Bloque muy significativo, con alto nmse. Alta probabilidad de señal de alta masa: efímera pero potente")
         best_blocks, significant_block = fit_slope_candidate_significant__blocks(track=track, tsft=opt_tsft, candidate_blocks=top_blocks, n_windows_per_block=8, blocks_in_time=False)
+        _log_third_check_diagnostics(
+            track=track,
+            candidate_blocks=top_blocks,
+            tsft=opt_tsft,
+            flag=flag,
+            mchirp=mchirp,
+            distance=distance,
+            stage_label="significant-block-refit",
+        )
 
     if not best_blocks:
+        _log_third_check_diagnostics(
+            track=track,
+            candidate_blocks=top_blocks,
+            tsft=opt_tsft,
+            flag=flag,
+            mchirp=mchirp,
+            distance=distance,
+            stage_label="fit-failure",
+        )
         print("Ningún bloque candidato pasó el Third check fit (probablemente por masa negativa o ajuste inválido). Fin de ejecución.")
         return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_third_fit_check")
 
     for i in range(len(best_blocks)):
         b = best_blocks[i] if isinstance(best_blocks, list) else best_blocks
-        print(f"Mejor bloque: t_start={b['starts'][0]*opt_tsft:.2f}s, t_end={b['ends'][-1]*opt_tsft:.2f}s, best_slope={float(b['best_slope'][0]):.6e}, best_mass={float(b['best_mass'][0]):.6e}, best_nmse={float(b['best_nmse'][0]):.6e}")
+        log_verbose(f"Mejor bloque: t_start={b['starts'][0]*opt_tsft:.2f}s, t_end={b['ends'][-1]*opt_tsft:.2f}s, best_slope={float(b['best_slope'][0]):.6e}, best_mass={float(b['best_mass'][0]):.6e}, best_nmse={float(b['best_nmse'][0]):.6e}")
 
     optimal_block = _select_optimal_block(best_blocks, opt_tsft)
     if optimal_block is None:
@@ -836,7 +957,7 @@ def search_candidates_in_memory(mchirp, distance, pack, noise, tsft_results):
         print("No fue posible expandir el bloque óptimo con los criterios actuales. Fin de ejecución.")
         return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=None, status="failed_block_expansion")
 
-    print(
+    log_verbose(
         f"Bloque óptimo extendido: t_start={extended_optimal_block['block_start']*opt_tsft:.2f}s, "
         f"t_end={extended_optimal_block['block_end']*opt_tsft:.2f}s, "
         f"final_slope={float(extended_optimal_block.get('final_slope', extended_optimal_block['best_slope'][0])):.6e}, "
@@ -857,7 +978,7 @@ def search_candidates_in_memory(mchirp, distance, pack, noise, tsft_results):
     slope_eval = float(extended_optimal_block.get("final_slope", extended_optimal_block["best_slope"][0]))
     mass_eval = float(extended_optimal_block.get("final_mass", extended_optimal_block["best_mass"][0]))
 
-    print(f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}")
+    log_verbose(f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}")
 
     nsigma_candidate_th = _candidate_threshold_nsigma(nmse_eval)
     candidate_passed = opt_nsigma >= nsigma_candidate_th
@@ -865,7 +986,7 @@ def search_candidates_in_memory(mchirp, distance, pack, noise, tsft_results):
     if not candidate_passed:
         print("El bloque extendido no cumple el umbral lineal " f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} " f"(nsigma_th={nsigma_candidate_th:.6e}). No se considera un candidato válido.")
         return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=False, nmse=nmse_eval, nsigma=opt_nsigma, mass=mass_eval, status="rejected_linear_threshold")
-    print("El bloque extendido cumple el umbral lineal " f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} " f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}.")
+    log_verbose("El bloque extendido cumple el umbral lineal " f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} " f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}.")
     return _build_search_result(pack=pack, mchirp=mchirp, distance=distance, noise=noise, candidate=True, nmse=nmse_eval, nsigma=opt_nsigma, mass=mass_eval, status="candidate_found")
 
 def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th best method, look at comparison between both metric plots.
@@ -881,7 +1002,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
     tsft_list = [2,4,8,16,32,64,128]
 
     opt_tsft, opt_nsigma, found_above_threshold = first_power_check(mchirp=mchirp, distance_str=distance_str, noise=noise, tsft_list=tsft_list, pack=pack)
-    print(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
+    log_verbose(f"Results: opt_tsft={opt_tsft} with ratio signal/noise={opt_nsigma:.4f}, found_above_threshold={found_above_threshold}")
 
     # ------- Ejemplo Second+Third Check (fit por ventana)
     n_windows = 8
@@ -893,9 +1014,9 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
     starts, ends = split_track_windows(track, n_windows=n_windows)
     candidate_blocks = [(int(s), int(e), 1.0) for s, e in zip(starts, ends)]
 
-    print(f"Step 2+3: fit en {len(candidate_blocks)} ventanas (tsft={opt_tsft}s)")
+    log_verbose(f"Step 2+3: fit en {len(candidate_blocks)} ventanas (tsft={opt_tsft}s)")
     for s, e, _ in candidate_blocks:
-        print(f"Ventana candidata [{s*opt_tsft}:{e*opt_tsft}]")
+        log_verbose(f"Ventana candidata [{s*opt_tsft}:{e*opt_tsft}]")
 
     best_blocks, significant_block= fit_slope_candidate_blocks(
                 track=track,
@@ -909,7 +1030,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
     best_nmse_seen = np.inf
     for b in best_blocks:
         nmse_values = np.asarray(b.get("best_nmse", []), dtype=float)
-        print(nmse_values)
+        log_verbose(nmse_values)
         if nmse_values.size == 0:
             continue
         nmse_win = float(np.min(nmse_values))
@@ -920,7 +1041,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
         if nmse_win > 5e-2:
             continue
         nmse_windows.append((nmse_win, b))
-        print(
+        log_verbose(
             f"Ventana fit: t_start={b['block_start']*opt_tsft:.2f}s, "
             f"t_end={b['block_end']*opt_tsft:.2f}s, "
             f"best_slope={float(b['best_slope'][0]):.6e}, "
@@ -940,7 +1061,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
                 )
         for b in best_blocks:
             nmse_values = np.asarray(b.get("best_nmse", []), dtype=float)
-            print(nmse_values)
+            log_verbose(nmse_values)
             if nmse_values.size == 0:
                 continue
             nmse_win = float(np.min(nmse_values))
@@ -951,7 +1072,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
             if nmse_win > 5e-2:
                 continue
             nmse_windows.append((nmse_win, b))
-            print(
+            log_verbose(
                 f"Ventana fit: t_start={b['block_start']*opt_tsft:.2f}s, "
                 f"t_end={b['block_end']*opt_tsft:.2f}s, "
                 f"best_slope={float(b['best_slope'][0]):.6e}, "
@@ -971,7 +1092,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
 
     nmse_windows.sort(key=lambda x: x[0])
     best_blocks = [nmse_windows[0][1]]
-    print(
+    log_verbose(
         f"Step 2+3 seleccionado -> "
         f"[{best_blocks[0]['block_start']*opt_tsft:.2f}:{best_blocks[0]['block_end']*opt_tsft:.2f}] s "
         f"con NMSE={nmse_windows[0][0]:.6e}"
@@ -1010,7 +1131,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
         print("No fue posible expandir el bloque óptimo con los criterios actuales. Fin de ejecución.")
         return None, nmse_eval, opt_nsigma, extended_optimal_block
 
-    print(
+    log_verbose(
         f"Bloque óptimo extendido: t_start={extended_optimal_block['block_start']*opt_tsft:.2f}s, "
         f"t_end={extended_optimal_block['block_end']*opt_tsft:.2f}s, "
         f"final_slope={float(extended_optimal_block.get('final_slope', extended_optimal_block['best_slope'][0])):.6e}, "
@@ -1034,7 +1155,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
     slope_eval = float(extended_optimal_block.get("final_slope", extended_optimal_block["best_slope"][0]))
     mass_eval = float(extended_optimal_block.get("final_mass", extended_optimal_block["best_mass"][0]))
 
-    print(
+    log_verbose(
         f"Fifth check NMSE: nmse_raw={nmse_raw_eval:.6e}, nmse_pen={nmse_eval:.6e}, "
         f"nsigma_th_line={_candidate_threshold_nsigma(nmse_eval):.6e}, "
         f"n_points_fit={n_points_ext}, len_factor={len_factor_ext:.3f}"
@@ -1058,7 +1179,7 @@ def search_candidates_fit(mchirp, distance, pack, noise): # Up to now, is not th
         nmse_candidate_th=nsigma_candidate_th,
     )
     if candidate_passed:
-        print(
+        log_verbose(
             "El bloque extendido cumple el umbral lineal "
             f"opt_nsigma >= {LINEAR_THRESHOLD_SLOPE:.6f} * nmse + {LINEAR_THRESHOLD_INTERCEPT:.6f} "
             f"(nsigma_th={nsigma_candidate_th:.6e}). Se ha guardado como candidato válido en {output_txt}."

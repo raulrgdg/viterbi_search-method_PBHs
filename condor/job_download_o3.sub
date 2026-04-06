@@ -1,0 +1,21 @@
+# Condor entrypoint for O3 download:
+# job_download_o3.sub -> /bin/bash ../bin/run_download_o3.sh -> src/download_O3_data.py
+executable = /bin/bash
+
+n_jobs=5
+arguments = ../bin/run_download_o3.sh $(n_jobs) $(Process)
+
+log = ../outputs/logs/download_o3.$(ClusterId).log
+output = ../outputs/logs/download_o3.$(ClusterId).$(Process).out
+error = ../outputs/logs/download_o3.$(ClusterId).$(Process).err
+
+request_cpus = 1
+request_memory = 4GB
+request_disk = 8GB
+
+accounting_group = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = raul.rodriguez
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue $(n_jobs)

@@ -18,7 +18,7 @@ NOISE_MODE = True
 SIGNAL_PACK = 3
 REPORTS_DIR = ensure_dir(OUTPUTS_REPORTS_DIR)
 TEMP_SHARDS_DIR = ensure_dir(OUTPUTS_DIR / "tmp" / "search_shards")
-NOISE_CSV_NAME = "search_results_noise.csv"
+NOISE_CSV_NAME = "search_results_noise-01_04.csv"
 SIGNAL_CSV_NAME = "search_results_signal.csv"
 SEARCH_RESULT_FIELDNAMES = ["pack", "mchirp", "distance", "candidate", "nmse", "nsigma", "mass", "injected", "status"]
 
@@ -35,6 +35,11 @@ def _output_csv_path(base_name, n_jobs, job_id):
         return REPORTS_DIR / base_name
     stem, suffix = base_name.rsplit(".", 1)
     return TEMP_SHARDS_DIR / f"{stem}.job-{job_id:03d}-of-{n_jobs:03d}.{suffix}"
+
+
+def csv_shard_output_path(base_name, n_jobs=1, job_id=0):
+    """Return the output path for a CSV shard or the final CSV when n_jobs == 1."""
+    return _output_csv_path(base_name, n_jobs, job_id)
 
 
 def search_results_csv_name(injected):
@@ -60,6 +65,20 @@ def append_search_result_row(result, output_csv, *, write_header_if_missing=True
         writer.writerow({field: result.get(field, "") for field in SEARCH_RESULT_FIELDNAMES})
 
 
+def append_csv_rows(rows, output_csv, fieldnames):
+    """Append normalized rows to a CSV, writing the header once if needed."""
+    output_csv = Path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    file_exists = output_csv.exists() and output_csv.stat().st_size > 0
+
+    with output_csv.open("a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
 def write_search_results_rows(rows, output_csv):
     """Write a full collection of normalized search-result dicts to a CSV file."""
     output_csv = Path(output_csv)
@@ -71,14 +90,25 @@ def write_search_results_rows(rows, output_csv):
             writer.writerow({field: row.get(field, "") for field in SEARCH_RESULT_FIELDNAMES})
 
 
+def write_csv_rows(rows, output_csv, fieldnames):
+    """Write normalized rows to a CSV, replacing any existing file."""
+    output_csv = Path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    with output_csv.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
 def mark_search_results_job_done(injected, n_jobs, job_id):
     """Create the shard done-marker used for later merge."""
-    _done_marker_path(search_results_csv_name(injected), n_jobs, job_id).write_text("", encoding="utf-8")
+    mark_csv_shard_done(search_results_csv_name(injected), n_jobs, job_id)
 
 
 def merge_search_results_if_ready(injected, total_jobs):
     """Merge search-result shards when all jobs have completed."""
-    _merge_shards_if_ready(search_results_csv_name(injected), SEARCH_RESULT_FIELDNAMES, total_jobs)
+    merge_csv_shards_if_ready(search_results_csv_name(injected), SEARCH_RESULT_FIELDNAMES, total_jobs)
 
 
 def _expected_shard_paths(base_name, total_jobs):
@@ -88,6 +118,11 @@ def _expected_shard_paths(base_name, total_jobs):
 def _done_marker_path(base_name, n_jobs, job_id):
     shard_path = _output_csv_path(base_name, n_jobs, job_id)
     return shard_path.with_suffix(f"{shard_path.suffix}.done")
+
+
+def csv_shard_done_marker_path(base_name, n_jobs, job_id):
+    """Return the done-marker path for one CSV shard."""
+    return _done_marker_path(base_name, n_jobs, job_id)
 
 
 def _expected_done_markers(base_name, total_jobs):
@@ -127,6 +162,7 @@ def _merge_shards_if_ready(base_name, fieldnames, total_jobs):
         print(f"Merge ya en curso para {base_name}.", flush=True)
         return
 
+    temp_output_csv = None
     try:
         output_csv = REPORTS_DIR / base_name
         temp_output_csv = output_csv.with_suffix(f"{output_csv.suffix}.tmp")
@@ -149,7 +185,19 @@ def _merge_shards_if_ready(base_name, fieldnames, total_jobs):
 
         print(f"CSV unificado actualizado en: {output_csv}", flush=True)
     finally:
+        if temp_output_csv is not None:
+            temp_output_csv.unlink(missing_ok=True)
         lock_path.unlink(missing_ok=True)
+
+
+def mark_csv_shard_done(base_name, n_jobs, job_id):
+    """Create the done-marker for one generic CSV shard."""
+    csv_shard_done_marker_path(base_name, n_jobs, job_id).write_text("", encoding="utf-8")
+
+
+def merge_csv_shards_if_ready(base_name, fieldnames, total_jobs):
+    """Merge generic CSV shards into the final reports directory output."""
+    _merge_shards_if_ready(base_name, fieldnames, total_jobs)
 
 
 def split_targets_for_job(targets, base_jobs, job_id):

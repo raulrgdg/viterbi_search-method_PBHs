@@ -14,12 +14,21 @@ Scientific pipeline for generating, processing, and searching transient signals 
 
 ## Main Execution Chains
 
+### O3 download
+
+`condor/job_download_o3.sub` -> `bin/run_download_o3.sh` -> `src/download_O3_data.py`
+
+This path:
+- splits O3 packs across `n_jobs`,
+- downloads raw O3 strain for the packs assigned to each job,
+- writes resampled GWF frames into `inputs/O3_data/`.
+
 ### Signal generation
 
 `condor/job_signal.sub` -> `bin/run_signal.sh` -> `src/data_generation-new_pipeline.py`
 
 This path:
-- downloads raw O3 strain for the configured pack,
+- reuses raw O3 strain for the configured pack,
 - injects synthetic signals,
 - generates SFTs,
 - runs preprocessing and Viterbi tracking,
@@ -30,7 +39,7 @@ This path:
 `condor/job_noise.sub` -> `bin/run_noise.sh` -> `src/noise-track_new-map-data_generation.py`
 
 This path:
-- downloads raw O3 strain for each assigned pack,
+- reuses pre-downloaded raw O3 strain for each assigned pack,
 - generates SFTs directly from raw strain,
 - runs preprocessing and Viterbi tracking,
 - writes noise-side track/index/power outputs.
@@ -81,6 +90,7 @@ Condor submission:
 condor_submit condor/job_signal.sub
 condor_submit condor/job_noise.sub
 condor_submit condor/job_search.sub
+condor_submit condor/job_download_o3.sub
 ```
 
 Direct shell wrappers:
@@ -89,6 +99,7 @@ Direct shell wrappers:
 bash bin/run_signal.sh 341 0
 bash bin/run_noise.sh 108 0
 bash bin/run_search.sh 1 0
+bash bin/run_download_o3.sh 5 0
 ```
 
 Auxiliary general search:

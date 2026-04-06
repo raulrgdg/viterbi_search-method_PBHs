@@ -6,8 +6,8 @@ from collections import defaultdict
 from pipeline_paths import OUTPUTS_REPORTS_DIR, ensure_dir
 
 REPORTS_DIR = ensure_dir(OUTPUTS_REPORTS_DIR)
-CSV_PATH = REPORTS_DIR / "power_noise_result_2-test-version2.csv"
-OUTPUT_CSV = REPORTS_DIR / "noise_metrics_2-test.csv"
+CSV_PATH = REPORTS_DIR / "power_noise_results-con20.csv"
+OUTPUT_CSV = REPORTS_DIR / "noise_metrics.csv"
 
 
 def main():
