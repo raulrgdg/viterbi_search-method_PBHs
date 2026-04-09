@@ -44,3 +44,36 @@ Or customize:
 ```bash
 python3 strong_scale_test/job_make_SFT_SS_test.py --threads 32 64 128 --request-cpus 128
 ```
+
+HTCondor path:
+
+- `job_make_SFT_SS_test.py` submits the job.
+- `run_make_SFT-SS_test_condor.sh` prepares env vars and output paths.
+- `make_SFT-SS_test.sh` runs the actual benchmark.
+
+## Slurm Submission
+
+For Hydra, keep the same benchmark script and use the Slurm-specific wrapper:
+
+```bash
+sbatch strong_scale_test/job_make_SFT_SS_test.slurm
+```
+
+Useful overrides at submit time:
+
+```bash
+sbatch --exclusive strong_scale_test/job_make_SFT_SS_test.slurm
+sbatch --export=ALL,NUM_THREADS_LIST="32 64 128",FRAMECACHE_PATH=/path/to/framecache strong_scale_test/job_make_SFT_SS_test.slurm
+```
+
+Slurm path:
+
+- `job_make_SFT_SS_test.slurm` defines the `#SBATCH` resources.
+- `run_make_SFT-SS_test_slurm.sh` prepares env vars and output paths.
+- `make_SFT-SS_test.sh` runs the actual benchmark.
+
+Hydra notes:
+
+- The script is configured for one-node multithread scaling: `-N 1`, `-n 1`, `-c 56`.
+- If you want an isolated node for cleaner performance numbers, submit with `sbatch --exclusive ...`.
+- `OMP_NUM_THREADS=1` is exported so the benchmark only measures the parallelism created by the shell loop launching `lalpulsar_MakeSFTs`.
