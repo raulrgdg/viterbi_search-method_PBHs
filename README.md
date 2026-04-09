@@ -11,6 +11,9 @@ Scientific pipeline for two workflow modes on O3 data:
 - `src/pipeline/noise_search/main.py`: main entrypoint for the full noise-search workflow.
 - `src/pipeline/injected_search/main.py`: main entrypoint for the full injected-search workflow.
 - `src/pipeline/search_candidates.py`: shared candidate-search driver called by both workflows.
+- `src/pipeline/calibration/`: threshold and calibration helpers.
+- `src/pipeline/analysis/`: analysis and post-processing scripts.
+- `src/pipeline/tools/`: operational and scientific utility scripts.
 - `scripts/`: shell entrypoints with the new names.
 - `workflows/`: HTCondor and Slurm submission files.
 - `configs/`: environment files and run profiles.
