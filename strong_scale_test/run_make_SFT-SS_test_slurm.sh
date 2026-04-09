@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_ROOT="${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
+PROJECT_ROOT="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR must be set for Slurm jobs}"
 SCRIPT_DIR="${STRONG_SCALE_SCRIPT_DIR:-${PROJECT_ROOT}/strong_scale_test}"
 TARGET_SCRIPT="${SCRIPT_DIR}/make_SFT-SS_test.sh"
 

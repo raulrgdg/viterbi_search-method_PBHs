@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PROJECT_ROOT="${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}}"
+PROJECT_ROOT="${SLURM_SUBMIT_DIR:?SLURM_SUBMIT_DIR must be set for Slurm jobs}"
 
 module purge
 module load Miniconda3/4.9.2
