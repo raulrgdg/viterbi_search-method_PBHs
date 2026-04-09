@@ -1,0 +1,22 @@
+# Condor entrypoint for injected search:
+# run_injected_search.sub -> /bin/bash ../scripts/run_injected_search.sh -> pipeline.injected_search.main
+executable = /bin/bash
+
+n_jobs=400
+pack=3
+arguments = ../scripts/run_injected_search.sh $(n_jobs) $(Process) $(pack)
+
+log = ../results/logs/injected_search.$(ClusterId).log
+output = ../results/logs/injected_search.$(ClusterId).$(Process).out
+error = ../results/logs/injected_search.$(ClusterId).$(Process).err
+
+request_cpus = 8
+request_memory = 12GB
+request_disk = 12GB
+
+accounting_group = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = raul.rodriguez
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue $(n_jobs)

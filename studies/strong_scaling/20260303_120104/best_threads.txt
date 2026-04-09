@@ -1,0 +1,2 @@
+best_threads=64
+best_elapsed_sec=5.688

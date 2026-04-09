@@ -1,0 +1,5 @@
+mode: injected_search
+description: Run the full injected-signal workflow on real O3 noise, including candidate search.
+entrypoint:
+  shell: scripts/run_injected_search.sh
+  python_module: pipeline.injected_search.main

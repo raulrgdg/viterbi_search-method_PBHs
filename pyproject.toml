@@ -1,0 +1,8 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transient-pipeline"
+version = "0.1.0"
+description = "Scientific pipeline for noise-only and injected-signal searches on O3 data."

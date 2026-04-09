@@ -1,0 +1,21 @@
+# Condor entrypoint for noise search:
+# run_noise_search.sub -> /bin/bash ../scripts/run_noise_search.sh -> pipeline.noise_search.main
+executable = /bin/bash
+
+n_jobs=5
+arguments = ../scripts/run_noise_search.sh $(n_jobs) $(Process)
+
+log = ../results/logs/noise_search.$(ClusterId).log
+output = ../results/logs/noise_search.$(ClusterId).$(Process).out
+error = ../results/logs/noise_search.$(ClusterId).$(Process).err
+
+request_cpus = 16
+request_memory = 8GB
+request_disk = 8GB
+
+accounting_group = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = raul.rodriguez
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue $(n_jobs)

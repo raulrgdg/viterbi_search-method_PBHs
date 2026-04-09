@@ -1,0 +1,5 @@
+mode: noise_search
+description: Run the full noise-only workflow, including candidate search.
+entrypoint:
+  shell: scripts/run_noise_search.sh
+  python_module: pipeline.noise_search.main

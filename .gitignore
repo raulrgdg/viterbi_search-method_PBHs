@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .venv_pycbc/
+legacy/
 src/.ipynb_checkpoints/
 
 outputs/data/*
@@ -12,6 +13,22 @@ outputs/reports/*
 !outputs/logs/.gitkeep
 !outputs/plots/.gitkeep
 !outputs/reports/.gitkeep
+
+data/raw/o3/*
+data/interim/*
+data/products/*
+results/logs/*
+results/plots/*
+results/reports/*
+results/tmp/*
+!data/raw/o3/.gitkeep
+!data/interim/noise_search/.gitkeep
+!data/interim/injected_search/.gitkeep
+!data/products/noise_search/.gitkeep
+!data/products/injected_search/.gitkeep
+!results/logs/.gitkeep
+!results/plots/.gitkeep
+!results/reports/.gitkeep
 
 # Strong scale benchmark outputs
 strong_scale_test/results/
