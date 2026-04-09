@@ -15,5 +15,6 @@ outputs/reports/*
 
 # Strong scale benchmark outputs
 strong_scale_test/results/
-strong_scale_test/slurm_logs/
+strong_scale_test/slurm_logs/*
+!strong_scale_test/slurm_logs/.gitkeep
 strong_scale_test/[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]/
