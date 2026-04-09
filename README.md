@@ -5,7 +5,8 @@ Scientific pipeline for generating, processing, and searching transient signals 
 ## Repository Layout
 
 - `condor/`: HTCondor submission files for signal generation, noise generation, and candidate search.
-- `bin/`: shell entrypoints launched by Condor and the SFT production helper script.
+- `slurm/`: Slurm submission files mirroring the main pipeline jobs for Hydra-style clusters.
+- `bin/`: shell entrypoints launched by the schedulers and the SFT production helper script.
 - `src/`: Python source code for data download, signal injection, SFT processing, fitting, and search metrics.
 - `config/`: environment and run-setup documentation.
 - `outputs/`: generated reports, plots, and logs.
@@ -18,6 +19,10 @@ Scientific pipeline for generating, processing, and searching transient signals 
 
 `condor/job_download_o3.sub` -> `bin/run_download_o3.sh` -> `src/download_O3_data.py`
 
+Slurm mirror:
+
+`slurm/job_download_o3.slurm` -> `bin/run_download_o3_slurm.sh` -> `src/download_O3_data.py`
+
 This path:
 - splits O3 packs across `n_jobs`,
 - downloads raw O3 strain for the packs assigned to each job,
@@ -26,6 +31,10 @@ This path:
 ### Signal generation
 
 `condor/job_signal.sub` -> `bin/run_signal.sh` -> `src/data_generation-new_pipeline.py`
+
+Slurm mirror:
+
+`slurm/job_signal.slurm` -> `bin/run_signal_slurm.sh` -> `src/data_generation-new_pipeline.py`
 
 This path:
 - reuses raw O3 strain for the configured pack,
@@ -38,6 +47,10 @@ This path:
 
 `condor/job_noise.sub` -> `bin/run_noise.sh` -> `src/noise-track_new-map-data_generation.py`
 
+Slurm mirror:
+
+`slurm/job_noise.slurm` -> `bin/run_noise_slurm.sh` -> `src/noise-track_new-map-data_generation.py`
+
 This path:
 - reuses pre-downloaded raw O3 strain for each assigned pack,
 - generates SFTs directly from raw strain,
@@ -47,6 +60,10 @@ This path:
 ### Candidate search
 
 `condor/job_search.sub` -> `bin/run_search.sh` -> `src/search_candidate.py`
+
+Slurm mirror:
+
+`slurm/job_search.slurm` -> `bin/run_search_slurm.sh` -> `src/search_candidate.py`
 
 This path:
 - reads generated track/index/power products,
@@ -93,6 +110,23 @@ condor_submit condor/job_search.sub
 condor_submit condor/job_download_o3.sub
 ```
 
+Slurm submission:
+
+```bash
+sbatch slurm/job_signal.slurm
+sbatch slurm/job_noise.slurm
+sbatch slurm/job_search.slurm
+sbatch slurm/job_download_o3.slurm
+```
+
+Useful Slurm overrides:
+
+```bash
+sbatch --export=ALL,N_JOBS=341,PACK=3 slurm/job_signal.slurm
+sbatch --export=ALL,N_JOBS=5 slurm/job_noise.slurm
+sbatch --export=ALL,N_JOBS=1 slurm/job_search.slurm
+```
+
 Direct shell wrappers:
 
 ```bash
@@ -117,5 +151,6 @@ python3 src/tmerger_mass_windows.py --mchirp-min 1e-4 --mchirp-max 1e-1 --flow 6
 ## Notes
 
 - The code assumes the scientific runtime dependencies from the `vit` environment are available.
+- The Slurm jobs target Hydra-style execution and rely on `module load Miniconda3/4.9.2` plus `conda activate vit`.
 - `src/general_search.py` is an auxiliary entrypoint; the main Condor search chain still uses `src/search_candidate.py`.
 - `src/search_candidate.py` writes one CSV shard per job when `n_jobs > 1`; when all jobs have finished, one of them acquires a lock, merges the shards from `outputs/tmp/search_shards/` and removes the temporary files.

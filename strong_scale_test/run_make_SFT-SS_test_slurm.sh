@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$(pwd)}}"
+SCRIPT_DIR="${STRONG_SCALE_SCRIPT_DIR:-${PROJECT_ROOT}/strong_scale_test}"
 TARGET_SCRIPT="${SCRIPT_DIR}/make_SFT-SS_test.sh"
 
 FRAMECACHE_PATH="${1:-}"

@@ -4,14 +4,14 @@
 #SBATCH -e strong_scale_test/slurm_logs/job.%j.err
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -c 56
-#SBATCH --mem=32G
+#SBATCH -c 8
+#SBATCH --mem=3G
 #SBATCH -t 02:00:00
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PROJECT_ROOT="${SLURM_SUBMIT_DIR}"
+SCRIPT_DIR="${PROJECT_ROOT}/strong_scale_test"
 LOG_DIR="${SCRIPT_DIR}/slurm_logs"
 mkdir -p "${LOG_DIR}"
 
