@@ -9,6 +9,7 @@ from pycbc import frame as pycbc_frame
 from pycbc.conversions import mchirp_from_mass1_mass2
 from pycbc.pnutils import mchirp_q_to_mass1_mass2
 
+from pipeline.campaigns.injection_assignment import assignment_for_pack
 from pipeline.common.paths import SCRIPTS_UTILS_DIR
 from pipeline.download.download_o3 import DEFAULT_OUTPUT_ROOT, O3_WINDOWS
 from pipeline.injected_search.inject_signal import inject_signal_into_real_data
@@ -153,6 +154,15 @@ def split_signals_for_job(signal_grid, base_jobs, job_id):
     return split_targets_for_job(signal_grid, base_jobs, job_id)
 
 
+def select_campaign_signal_slice(signal_grid, assignment):
+    if len(signal_grid) < assignment.signal_end:
+        raise ValueError(
+            f"La campana requiere senales [{assignment.signal_start}, {assignment.signal_end}) "
+            f"para {assignment.cluster}, pero el grid actual solo tiene {len(signal_grid)} senales."
+        )
+    return signal_grid[assignment.signal_start:assignment.signal_end]
+
+
 def build_tsft_configs(tsft_values):
     total_duration = NUM_FRAMES * FRAME_LENGTH
     return [
@@ -283,9 +293,9 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
     )
 
 
-def finalize_signal_shard(total_jobs, job_id):
-    mark_search_results_job_done(injected=True, n_jobs=total_jobs, job_id=job_id)
-    merge_search_results_if_ready(injected=True, total_jobs=total_jobs)
+def finalize_signal_shard(total_jobs, job_id, pack):
+    mark_search_results_job_done(injected=True, n_jobs=total_jobs, job_id=job_id, pack=pack)
+    merge_search_results_if_ready(injected=True, total_jobs=total_jobs, pack=pack)
 
 
 def print_job_distribution(total_signals, n_jobs, signals_per_job, remainder, total_jobs):
@@ -303,6 +313,7 @@ def print_current_job(job_id, total_jobs, assigned_signals):
 def main():
     args = parse_args()
     pack = args.pack
+    assignment = assignment_for_pack(pack)
     run_key = f"O3b-pack{pack}"
     if run_key not in O3_WINDOWS:
         raise ValueError(f"Pack no soportado: {pack}. Packs disponibles: {sorted(int(key.split('pack')[1]) for key in O3_WINDOWS)}")
@@ -310,11 +321,18 @@ def main():
     t_start, t_end = run_label
 
     signal_grid = build_signal_grid(MCHIRP_GRID, DISTANCE_GRID)
-    assigned_signals, signals_per_job, remainder, total_jobs = split_signals_for_job(signal_grid, args.n_jobs, args.job_id)
+    campaign_signals = select_campaign_signal_slice(signal_grid, assignment)
+    assigned_signals, signals_per_job, remainder, total_jobs = split_signals_for_job(campaign_signals, args.n_jobs, args.job_id)
 
-    print_job_distribution(len(signal_grid), args.n_jobs, signals_per_job, remainder, total_jobs)
+    print(
+        f"Campana inyecciones: pack={pack}, cluster={assignment.cluster}, "
+        f"scheduler={assignment.scheduler}, data_mode={assignment.data_mode}, "
+        f"signal_slice=[{assignment.signal_start}, {assignment.signal_end})",
+        flush=True,
+    )
+    print_job_distribution(len(campaign_signals), args.n_jobs, signals_per_job, remainder, total_jobs)
 
-    output_csv = search_results_output_path(injected=True, n_jobs=args.n_jobs, job_id=args.job_id)
+    output_csv = search_results_output_path(injected=True, n_jobs=args.n_jobs, job_id=args.job_id, pack=pack)
     if not assigned_signals:
         write_search_results_rows([], output_csv)
         print(
@@ -322,7 +340,7 @@ def main():
             flush=True,
         )
         if args.n_jobs > 1:
-            finalize_signal_shard(total_jobs, args.job_id)
+            finalize_signal_shard(total_jobs, args.job_id, pack)
         return
 
     print_current_job(args.job_id, total_jobs, assigned_signals)
@@ -361,7 +379,7 @@ def main():
             final_status = "done" if completed_signals == total_assigned_signals else "ok"
             update_signal_progress(completed_signals, total_assigned_signals, status=final_status)
     if args.n_jobs > 1:
-        finalize_signal_shard(total_jobs, args.job_id)
+        finalize_signal_shard(total_jobs, args.job_id, pack)
 
 
 if __name__ == "__main__":

@@ -1,9 +1,11 @@
 # Condor entrypoint for injected search:
 # run_injected_search.sub -> /bin/bash ../scripts/run_injected_search.sh -> pipeline.injected_search.main
+# Intended use for the 600-signal campaign: submit once per assigned HPC1 pack.
+# HPC1 packs: 1-12, 37-48, 73-84. The Python entrypoint derives signal slice [0, 200).
 executable = /bin/bash
 
-n_jobs=400
-pack=3
+n_jobs=200
+pack=1
 arguments = ../scripts/run_injected_search.sh $(n_jobs) $(Process) $(pack)
 
 log = ../results/logs/injected_search.$(ClusterId).log

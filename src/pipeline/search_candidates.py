@@ -42,14 +42,20 @@ def csv_shard_output_path(base_name, n_jobs=1, job_id=0):
     return _output_csv_path(base_name, n_jobs, job_id)
 
 
-def search_results_csv_name(injected):
+def search_results_csv_name(injected, pack=None):
     """Return the standard CSV filename for noise or injected search results."""
-    return SIGNAL_CSV_NAME if injected else NOISE_CSV_NAME
+    if not injected:
+        return NOISE_CSV_NAME
+    if pack is None:
+        return SIGNAL_CSV_NAME
+
+    stem, suffix = SIGNAL_CSV_NAME.rsplit(".", 1)
+    return f"{stem}_pack-{pack}.{suffix}"
 
 
-def search_results_output_path(injected, n_jobs=1, job_id=0):
+def search_results_output_path(injected, n_jobs=1, job_id=0, pack=None):
     """Return the standard output path for one search-results writer."""
-    return _output_csv_path(search_results_csv_name(injected), n_jobs, job_id)
+    return _output_csv_path(search_results_csv_name(injected, pack=pack), n_jobs, job_id)
 
 
 def append_search_result_row(result, output_csv, *, write_header_if_missing=True):
@@ -101,14 +107,14 @@ def write_csv_rows(rows, output_csv, fieldnames):
             writer.writerow({field: row.get(field, "") for field in fieldnames})
 
 
-def mark_search_results_job_done(injected, n_jobs, job_id):
+def mark_search_results_job_done(injected, n_jobs, job_id, pack=None):
     """Create the shard done-marker used for later merge."""
-    mark_csv_shard_done(search_results_csv_name(injected), n_jobs, job_id)
+    mark_csv_shard_done(search_results_csv_name(injected, pack=pack), n_jobs, job_id)
 
 
-def merge_search_results_if_ready(injected, total_jobs):
+def merge_search_results_if_ready(injected, total_jobs, pack=None):
     """Merge search-result shards when all jobs have completed."""
-    merge_csv_shards_if_ready(search_results_csv_name(injected), SEARCH_RESULT_FIELDNAMES, total_jobs)
+    merge_csv_shards_if_ready(search_results_csv_name(injected, pack=pack), SEARCH_RESULT_FIELDNAMES, total_jobs)
 
 
 def _expected_shard_paths(base_name, total_jobs):
