@@ -38,13 +38,16 @@ DEFAULT_N_JOBS = 400
 DEFAULT_JOB_ID = 0
 DEFAULT_PACK = 3
 
-MCHIRP_GRID = np.logspace(np.log10(5e-4), np.log10(1e-1), 16)
+MCHIRP_GRID = np.unique(
+    np.concatenate([np.logspace(np.log10(2e-4), np.log10(1e-1), 19), [0.085]])
+)
 DISTANCE_GRID = np.unique(
     np.concatenate(
         [
+            np.logspace(-4, -3, 4, endpoint=False),
             np.logspace(-3, -2, 4, endpoint=False),
             np.logspace(-2, -1, 16, endpoint=False),
-            np.logspace(-1, np.log10(0.130), 5),
+            np.logspace(-1, np.log10(0.145), 6),
         ]
     )
 )
