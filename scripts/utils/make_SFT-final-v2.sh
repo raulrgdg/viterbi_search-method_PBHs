@@ -68,14 +68,12 @@ else
 fi
 
 workers=$num_threads
-max_workers=$((2 * cpu_count))
-if (( workers > max_workers )); then workers=$max_workers; fi
 if (( workers > full_sfts )); then workers=$full_sfts; fi
 if (( workers < 1 )); then workers=1; fi
 
 if [[ "$sft_verbose" == "1" ]]; then
     echo "duration=${duration}s, Tseg=${Tseg}s, full_sfts=${full_sfts}, remainder=${remainder}s"
-    echo "requested_threads=${num_threads}, cpu_count=${cpu_count}, max_workers=${max_workers}, workers=${workers}"
+    echo "requested_threads=${num_threads}, cpu_count=${cpu_count}, workers=${workers}"
 fi
 
 base=$((full_sfts / workers))

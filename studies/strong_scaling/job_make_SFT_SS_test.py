@@ -21,7 +21,7 @@ def parse_args():
         default=[16, 32, 64, 128, 256, 512],
         help="Thread counts to benchmark.",
     )
-    parser.add_argument("--request-cpus", default="56")
+    parser.add_argument("--request-cpus", default="8")
     parser.add_argument("--request-memory", default="1GB")
     parser.add_argument("--request-disk", default="5GB")
     return parser.parse_args()

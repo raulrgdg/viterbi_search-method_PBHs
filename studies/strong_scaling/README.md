@@ -74,6 +74,6 @@ Slurm path:
 
 Hydra notes:
 
-- The script is configured for one-node multithread scaling: `-N 1`, `-n 1`, `-c 56`.
+- The script is configured for one-node multithread scaling: `-N 1`, `-n 1`, `-c 8`.
 - If you want an isolated node for cleaner performance numbers, submit with `sbatch --exclusive ...`.
 - `OMP_NUM_THREADS=1` is exported so the benchmark only measures the parallelism created by the shell loop launching `lalpulsar_MakeSFTs`.
