@@ -7,9 +7,9 @@ initialdir = .
 
 arguments = run_make_SFT-SS_test_condor.sh data/framecache_raw_strain_512HZ 16 32 64 128 256 512
 
-output = make_sft_ss_test.$(ClusterId).out
-error = make_sft_ss_test.$(ClusterId).err
-log = make_sft_ss_test.$(ClusterId).log
+output = condor_logs/make_sft_ss_test.$(ClusterId).out
+error = condor_logs/make_sft_ss_test.$(ClusterId).err
+log = condor_logs/make_sft_ss_test.$(ClusterId).log
 
 request_cpus = 8
 request_memory = 1GB
