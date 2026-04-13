@@ -1,0 +1,21 @@
+# Direct HTCondor submit file for the SFT strong-scaling benchmark.
+# Usage from repo root:
+#   condor_submit studies/strong_scaling/job_make_SFT_SS_test.sub
+
+executable = /bin/bash
+initialdir = .
+
+arguments = studies/strong_scaling/run_make_SFT-SS_test_condor.sh studies/strong_scaling/data/framecache_raw_strain_512HZ 16 32 64 128 256 512
+
+output = studies/strong_scaling/make_sft_ss_test.$(ClusterId).out
+error = studies/strong_scaling/make_sft_ss_test.$(ClusterId).err
+log = studies/strong_scaling/make_sft_ss_test.$(ClusterId).log
+
+request_cpus = 8
+request_memory = 1GB
+request_disk = 5GB
+
+getenv = True
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue 1
