@@ -1,6 +1,6 @@
 # Strong Scale Test
 
-This benchmark measures how `lalpulsar_MakeSFTs` scales with different thread counts using the two bundled O3b strain frames in `strong_scale_test/data/`.
+This benchmark measures how `lalpulsar_MakeSFTs` scales with different thread counts using the two bundled O3b strain frames in `studies/strong_scaling/data/`.
 
 ## Included Inputs
 
@@ -15,20 +15,20 @@ The shell runner auto-rebuilds a local framecache if the tracked one points to m
 Run from anywhere:
 
 ```bash
-bash strong_scale_test/make_SFT-SS_test.sh 16 32 64 128
+bash studies/strong_scaling/make_SFT-SS_test.sh 16 32 64 128
 ```
 
 Outputs are written to:
 
 ```bash
-strong_scale_test/results/<RUN_ID>/
+studies/strong_scaling/results/<RUN_ID>/
 ```
 
 Useful overrides:
 
 ```bash
-BASE_PATH=/tmp/strong-scale-test bash strong_scale_test/make_SFT-SS_test.sh 32 64
-framecache=/path/to/framecache bash strong_scale_test/make_SFT-SS_test.sh 64 128
+BASE_PATH=/tmp/strong-scale-test bash studies/strong_scaling/make_SFT-SS_test.sh 32 64
+framecache=/path/to/framecache bash studies/strong_scaling/make_SFT-SS_test.sh 64 128
 ```
 
 ## HTCondor Submission
@@ -36,13 +36,13 @@ framecache=/path/to/framecache bash strong_scale_test/make_SFT-SS_test.sh 64 128
 Submit with the bundled paths:
 
 ```bash
-python3 strong_scale_test/job_make_SFT_SS_test.py
+python3 studies/strong_scaling/job_make_SFT_SS_test.py
 ```
 
 Or customize:
 
 ```bash
-python3 strong_scale_test/job_make_SFT_SS_test.py --threads 32 64 128 --request-cpus 128
+python3 studies/strong_scaling/job_make_SFT_SS_test.py --threads 32 64 128 --request-cpus 128
 ```
 
 HTCondor path:
@@ -56,14 +56,14 @@ HTCondor path:
 For Hydra, keep the same benchmark script and use the Slurm-specific wrapper:
 
 ```bash
-sbatch strong_scale_test/job_make_SFT_SS_test.slurm
+sbatch studies/strong_scaling/job_make_SFT_SS_test.slurm
 ```
 
 Useful overrides at submit time:
 
 ```bash
-sbatch --exclusive strong_scale_test/job_make_SFT_SS_test.slurm
-sbatch --export=ALL,NUM_THREADS_LIST="32 64 128",FRAMECACHE_PATH=/path/to/framecache strong_scale_test/job_make_SFT_SS_test.slurm
+sbatch --exclusive studies/strong_scaling/job_make_SFT_SS_test.slurm
+sbatch --export=ALL,NUM_THREADS_LIST="32 64 128",FRAMECACHE_PATH=/path/to/framecache studies/strong_scaling/job_make_SFT_SS_test.slurm
 ```
 
 Slurm path:

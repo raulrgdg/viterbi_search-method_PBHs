@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J sft-strong-scale
-#SBATCH -o strong_scale_test/slurm_logs/job.%j.out
-#SBATCH -e strong_scale_test/slurm_logs/job.%j.err
+#SBATCH -o studies/strong_scaling/slurm_logs/job.%j.out
+#SBATCH -e studies/strong_scaling/slurm_logs/job.%j.err
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 8
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="${SLURM_SUBMIT_DIR}"
-SCRIPT_DIR="${PROJECT_ROOT}/strong_scale_test"
+SCRIPT_DIR="${PROJECT_ROOT}/studies/strong_scaling"
 LOG_DIR="${SCRIPT_DIR}/slurm_logs"
 mkdir -p "${LOG_DIR}"
 

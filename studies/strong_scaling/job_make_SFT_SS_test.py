@@ -6,7 +6,7 @@ import htcondor2 as htcondor
 
 def parse_args():
     script_dir = Path(__file__).resolve().parent
-    default_project_root = script_dir.parent
+    default_project_root = script_dir.parent.parent
     default_run_script = script_dir / "run_make_SFT-SS_test_condor.sh"
     default_framecache = script_dir / "data" / "framecache_raw_strain_512HZ"
 
@@ -32,7 +32,7 @@ def main():
     project_root = args.project_root.resolve()
     run_script = args.run_script.resolve()
     framecache = args.framecache.resolve()
-    log_dir = project_root / "condorlogs"
+    log_dir = project_root / "studies" / "strong_scaling" / "condor_logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     stdout_path = log_dir / "make_sft_ss_test.out"

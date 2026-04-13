@@ -6,7 +6,7 @@ import time
 import numpy as np
 import soapcw as soap
 
-from pipeline.common.paths import BIN_DIR
+from pipeline.common.paths import SCRIPTS_UTILS_DIR
 from pipeline.download.download_o3 import DEFAULT_OUTPUT_ROOT, O3_WINDOWS
 from pipeline.search_candidates import (
     append_csv_rows,
@@ -36,7 +36,7 @@ from pipeline.sft.tracking import (
 )
 from pipeline.utils.framecache import generate_framecache_raw_strain
 
-BASH_SCRIPT_PATH = BIN_DIR / "make_SFT-final-v2.sh"
+BASH_SCRIPT_PATH = SCRIPTS_UTILS_DIR / "make_SFT-final-v2.sh"
 
 SEARCH = True
 

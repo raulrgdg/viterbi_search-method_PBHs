@@ -9,7 +9,7 @@ from pycbc import frame as pycbc_frame
 from pycbc.conversions import mchirp_from_mass1_mass2
 from pycbc.pnutils import mchirp_q_to_mass1_mass2
 
-from pipeline.common.paths import BIN_DIR
+from pipeline.common.paths import SCRIPTS_UTILS_DIR
 from pipeline.download.download_o3 import DEFAULT_OUTPUT_ROOT, O3_WINDOWS
 from pipeline.injected_search.inject_signal import inject_signal_into_real_data
 from pipeline.search_candidates import (
@@ -31,7 +31,7 @@ from pipeline.sft.tracking import (
 )
 from pipeline.utils.framecache import generate_framecache
 
-BASH_SCRIPT_PATH = BIN_DIR / "make_SFT-final-v2.sh"
+BASH_SCRIPT_PATH = SCRIPTS_UTILS_DIR / "make_SFT-final-v2.sh"
 
 DEFAULT_N_JOBS = 400
 DEFAULT_JOB_ID = 0

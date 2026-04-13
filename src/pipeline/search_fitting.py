@@ -741,9 +741,9 @@ def expansion_block(
 
 if __name__ == "__main__":
     path_track = str(
-        Path(__file__).resolve().parents[1]
-        / "inputs"
+        Path(__file__).resolve().parents[3]
         / "data"
+        / "products"
         / "pack-3"
         / "tracks-frequencies_remote"
         / "signal"
