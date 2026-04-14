@@ -25,7 +25,7 @@ RESULTS_TMP_DIR = RESULTS_DIR / "tmp"
 
 # Compatibility aliases mapped to the new canonical layout.
 BIN_DIR = SCRIPTS_DIR
-CONDOR_DIR = PROJECT_ROOT / "condor"
+CONDOR_DIR = WORKFLOWS_DIR / "condor"
 INPUTS_DIR = DATA_DIR
 INPUTS_O3_DATA_DIR = DATA_RAW_O3_DIR
 INPUTS_DATA_DIR = DATA_PRODUCTS_DIR

@@ -1,13 +1,16 @@
 # Condor entrypoint for O3 download:
-# download_o3.sub -> /bin/bash ../scripts/download_o3.sh -> pipeline.download.download_o3
+# Submit from the project root:
+# condor_submit workflows/condor/download_o3.sub
+# download_o3.sub -> /bin/bash scripts/download_o3.sh -> pipeline.download.download_o3
 executable = /bin/bash
+initialdir = .
 
 n_jobs=5
-arguments = ../scripts/download_o3.sh $(n_jobs) $(Process)
+arguments = scripts/download_o3.sh $(n_jobs) $(Process)
 
-log = ../results/logs/download_o3.$(ClusterId).log
-output = ../results/logs/download_o3.$(ClusterId).$(Process).out
-error = ../results/logs/download_o3.$(ClusterId).$(Process).err
+log = results/logs/download_o3.$(ClusterId).log
+output = results/logs/download_o3.$(ClusterId).$(Process).out
+error = results/logs/download_o3.$(ClusterId).$(Process).err
 
 request_cpus = 1
 request_memory = 4GB

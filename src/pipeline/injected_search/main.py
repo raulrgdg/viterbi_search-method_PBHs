@@ -36,7 +36,6 @@ BASH_SCRIPT_PATH = SCRIPTS_UTILS_DIR / "make_SFT-final-v2.sh"
 
 DEFAULT_N_JOBS = 400
 DEFAULT_JOB_ID = 0
-DEFAULT_PACK = 3
 
 MCHIRP_GRID = np.unique(
     np.concatenate([np.logspace(np.log10(2e-4), np.log10(1e-1), 19), [0.085]])
@@ -61,9 +60,9 @@ T_TO_MERG_BY_MCHIRP = [
     (5.2162869401969120e-03, 8.3302027440089410e-03, 3.2780000000000000e04),
 ]
 DEFAULT_T_TO_MERG = 32780
-RA = 1.7
-DEC = 1.7
-POL = 0.2
+DEC_RANGE = (-np.pi / 2, np.pi / 2)
+RA_RANGE = (0, 2 * np.pi)
+POL_RANGE = (0, np.pi)
 INC = 0
 MAKE_SFT_THREADS = 256
 TSFT_VALUES = [2, 3, 4, 5, 7, 10, 13, 18, 25, 35, 47, 63, 88]
@@ -106,7 +105,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Signal data generation repartido en jobs Condor.")
     parser.add_argument("--n-jobs", type=int, default=DEFAULT_N_JOBS)
     parser.add_argument("--job-id", type=int, default=DEFAULT_JOB_ID)
-    parser.add_argument("--pack", type=int, default=DEFAULT_PACK)
+    parser.add_argument("--pack", type=int, required=True)
     return parser.parse_args()
 
 
@@ -126,6 +125,14 @@ def get_t_to_merger_for_mchirp(mchirp):
         if mchirp_min <= mchirp <= mchirp_max:
             return t_to_merger
     return DEFAULT_T_TO_MERG
+
+
+def sample_sky_parameters():
+    return {
+        "ra": np.random.uniform(*RA_RANGE),
+        "dec": np.random.uniform(*DEC_RANGE),
+        "pol": np.random.uniform(*POL_RANGE),
+    }
 
 
 def load_raw_existing_data(raw_data_dir, t_start):
@@ -236,9 +243,11 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
     mchirp = mchirp_from_mass1_mass2(m1, m2)
     distance_str = f"{distance:.3f}".replace(".", "_")
     t_to_merger = get_t_to_merger_for_mchirp(mchirp)
+    sky_params = sample_sky_parameters()
     log_verbose(
         f"Iniciando senal: m1={m1:.6g}, m2={m2:.6g}, dL={distance:.3f} Mpc, "
-        f"mchirp={mchirp:.6g}, t_to_merger={t_to_merger:.6g}"
+        f"mchirp={mchirp:.6g}, t_to_merger={t_to_merger:.6g}, "
+        f"ra={sky_params['ra']:.6g}, dec={sky_params['dec']:.6g}, pol={sky_params['pol']:.6g}"
     )
 
     coal_time = inject_signal_into_real_data(
@@ -246,9 +255,9 @@ def process_single_signal(pack, t_start, t_end, raw_data_dir, raw_existing_data,
         m2=m2,
         distance=distance,
         t_to_merg=t_to_merger,
-        ra=RA,
-        dec=DEC,
-        pol=POL,
+        ra=sky_params["ra"],
+        dec=sky_params["dec"],
+        pol=sky_params["pol"],
         inc=INC,
         ifo=IFO,
         t_start=t_start,

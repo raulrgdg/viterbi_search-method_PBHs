@@ -9,8 +9,9 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate vit
 
 cd "${PROJECT_ROOT}"
+PACK="${3:?Usage: $0 <n_jobs> <job_id> <pack>}"
 PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}" \
 python3 -u -m pipeline.injected_search.main \
     --n-jobs "$1" \
     --job-id "$2" \
-    --pack "${3:-3}"
+    --pack "${PACK}"
