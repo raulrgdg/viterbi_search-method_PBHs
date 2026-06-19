@@ -1,10 +1,10 @@
-# Viterbi GW Transient Search Pipeline
+# Viterbi tCW Search Pipeline
 
-A scientific pipeline for searching sub-solar mass gravitational-wave transients — in particular primordial black hole (PBH) binary mergers — in LIGO O3 strain data using a Viterbi-based frequency tracking algorithm.
+A scientific pipeline for searching sub-solar mass gravitational-wave transients, in particular primordial black hole (PBH) binary mergers, in LIGO O3 strain data using a Viterbi-based frequency tracking algorithm.
 
 ## What Is This
 
-This pipeline implements the search method described in *"Search for gravitational waves from primordial black hole binaries using the Viterbi algorithm"* (Rodríguez et al.). It targets the inspiral chirp track of sub-solar compact binary mergers in the frequency band ~61–127 Hz over the LIGO O3 observing run.
+This pipeline implements the search method described in *"Search for gravitational waves from primordial black hole binaries using the Viterbi algorithm"* (Raúl Rodríguez et al.). It targets the inspiral chirp track of sub-solar compact binary mergers in the frequency band ~61–127 Hz over the LIGO O3 observing run.
 
 The core idea: the GW frequency evolves as f(t) ∝ (t_c − t)^{−3/8}. After a coordinate remap f^{−8/3} → linear, this chirp becomes a near-straight path in time–frequency space, which a Viterbi HMM tracker (via `soapcw`) can follow efficiently without matched filtering.
 
@@ -16,6 +16,7 @@ Two search modes are available:
 ## Based On
 
 - [SOAP / soapcw](https://github.com/jcbayley/soapcw) — the Viterbi HMM power tracker used for SFT-domain path finding.
+- A previous repository by G. Alestas.
 - LIGO O3 public strain data via GWOSC.
 - PyCBC — used for frame I/O and waveform parameter conversions in the injection workflow.
 
