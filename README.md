@@ -1,111 +1,98 @@
-# Pipeline
+# Viterbi GW Transient Search Pipeline
 
-Scientific pipeline for two workflow modes on O3 data:
+A scientific pipeline for searching sub-solar mass gravitational-wave transients — in particular primordial black hole (PBH) binary mergers — in LIGO O3 strain data using a Viterbi-based frequency tracking algorithm.
 
-1. `noise_search`: build products from real noise and search for candidates.
-2. `injected_search`: inject mock signals into real noise, build products, and search for candidates.
+## What Is This
+
+This pipeline implements the search method described in *"Search for gravitational waves from primordial black hole binaries using the Viterbi algorithm"* (Rodríguez et al.). It targets the inspiral chirp track of sub-solar compact binary mergers in the frequency band ~61–127 Hz over the LIGO O3 observing run.
+
+The core idea: the GW frequency evolves as f(t) ∝ (t_c − t)^{−3/8}. After a coordinate remap f^{−8/3} → linear, this chirp becomes a near-straight path in time–frequency space, which a Viterbi HMM tracker (via `soapcw`) can follow efficiently without matched filtering.
+
+Two search modes are available:
+
+- **`noise_search`** — runs the full chain on real O3 strain to identify candidates.
+- **`injected_search`** — injects synthetic chirp signals into real noise before running the same chain, for sensitivity characterization.
+
+## Based On
+
+- [SOAP / soapcw](https://github.com/jcbayley/soapcw) — the Viterbi HMM power tracker used for SFT-domain path finding.
+- LIGO O3 public strain data via GWOSC.
+- PyCBC — used for frame I/O and waveform parameter conversions in the injection workflow.
 
 ## Repository Layout
 
-- `src/pipeline/`: reorganized Python package.
-- `src/pipeline/noise_search/main.py`: main entrypoint for the full noise-search workflow.
-- `src/pipeline/injected_search/main.py`: main entrypoint for the full injected-search workflow.
-- `src/pipeline/search_candidates.py`: shared candidate-search driver called by both workflows.
-- `src/pipeline/calibration/`: threshold and calibration helpers.
-- `src/pipeline/analysis/`: analysis and post-processing scripts.
-- `src/pipeline/tools/`: operational and scientific utility scripts.
-- `scripts/`: shell entrypoints with the new names.
-- `workflows/`: HTCondor and Slurm submission files.
-- `configs/`: environment files and run profiles.
-- `data/`: target location for raw, interim, and generated products in the new structure.
-- `results/`: reports, plots, and scheduler logs in the new structure.
-- `studies/strong_scaling/`: strong-scaling study artifacts.
+```
+src/pipeline/
+  noise_search/main.py       # noise-only workflow entrypoint
+  injected_search/main.py    # injection workflow entrypoint
+  sft/tracking.py            # Viterbi SFT tracker + frequency remap
+  search_candidates.py       # candidate search driver (shared)
+  calibration/               # detection threshold helpers
+  analysis/                  # post-processing & plotting scripts
+  tools/                     # parameter-space utilities
+scripts/                     # shell wrappers called by HPC submissions
+workflows/
+  condor/                    # HTCondor .sub files
+  slurm/                     # Slurm .slurm files
+campaigns/injection_600/     # 600-signal injection campaign helpers
+data/raw/o3/                 # raw O3 strain packs (target location)
+results/                     # reports, plots, logs
+```
 
-## Main Workflow Modes
+## Usage
 
-### Noise Search
+### On an HPC Cluster
 
-Full chain:
+The pipeline is designed to fan out over O3 data "packs" (108 total). Each job processes one pack; the scheduler handles parallelism.
 
-`workflows/condor/run_noise_search.sub` -> `scripts/run_noise_search.sh` -> `src/pipeline/noise_search/main.py`
-
-Slurm mirror:
-
-`workflows/slurm/run_noise_search.slurm` -> `scripts/run_noise_search_slurm.sh` -> `src/pipeline/noise_search/main.py`
-
-This workflow:
-- reuses downloaded O3 raw strain,
-- generates SFT-based products,
-- runs Viterbi tracking,
-- runs candidate search on the generated products.
-
-### Injected Search
-
-Full chain:
-
-`workflows/condor/run_injected_search.sub` -> `scripts/run_injected_search.sh` -> `src/pipeline/injected_search/main.py`
-
-Slurm mirror:
-
-`workflows/slurm/run_injected_search.slurm` -> `scripts/run_injected_search_slurm.sh` -> `src/pipeline/injected_search/main.py`
-
-This workflow:
-- reuses downloaded O3 raw strain,
-- injects synthetic signals into real noise,
-- generates SFT-based products,
-- runs Viterbi tracking,
-- runs candidate search on the generated products.
-
-### O3 Download
-
-Support chain:
-
-`workflows/condor/download_o3.sub` -> `scripts/download_o3.sh` -> `src/pipeline/download/download_o3.py`
-
-Slurm mirror:
-
-`workflows/slurm/download_o3.slurm` -> `scripts/download_o3_slurm.sh` -> `src/pipeline/download/download_o3.py`
-
-## Current Migration Status
-
-The repository now exposes the new structure and names as the primary interface.
-
-The canonical runtime locations are now:
-- `data/raw/o3/`
-- `data/products/`
-- `results/reports/`
-- `results/plots/`
-- `results/logs/`
-
-## Typical Usage
-
-Run from the repository root.
-
-Condor:
-
+**HTCondor:**
 ```bash
 condor_submit workflows/condor/download_o3.sub
 condor_submit workflows/condor/run_noise_search.sub
 condor_submit workflows/condor/run_injected_search.sub
 ```
 
-Slurm:
-
+**Slurm:**
 ```bash
 sbatch workflows/slurm/download_o3.slurm
 sbatch workflows/slurm/run_noise_search.slurm
 sbatch workflows/slurm/run_injected_search.slurm
 ```
 
-Direct wrappers:
+For large injection campaigns across multiple clusters, use the automation helpers in `campaigns/injection_600/`:
+```bash
+# HTCondor (HPC1)
+bash campaigns/injection_600/submit_condor_chain.sh
+
+# Slurm (HPC2 / HPC3)
+CLUSTER=HPC2 bash campaigns/injection_600/submit_slurm_chain.sh
+```
+
+Each chain submits packs sequentially with `afterok` dependencies so the next pack only starts if the previous succeeds.
+
+### Quick Local Run (No HPC)
+
+Run a single pack directly from the repo root:
 
 ```bash
+# Download one O3 pack
 bash scripts/download_o3.sh 5 0
+
+# Noise-only search on pack 108, job slot 0
 bash scripts/run_noise_search.sh 108 0
+
+# Injected search: pack 400, job slot 0, signal index 3
 bash scripts/run_injected_search.sh 400 0 3
 ```
 
-## Notes
+### Installation
 
-- `src/pipeline/search_candidates.py`, `src/pipeline/search_metrics.py`, and related modules are currently compatibility bridges over the existing scientific code.
-- The next migration step is to move internal imports and path management from legacy modules to the new package paths.
+```bash
+pip install -e .
+```
+
+Requires `soapcw`, `pycbc`, `numpy`, and standard LIGO frame utilities.
+
+## Output
+
+Results are written to `results/reports/` as CSV files (one per pack), then merged. Key columns: pack id, Viterbi score, candidate frequency track, estimated chirp mass, detection metrics (nσ, NMSE).
