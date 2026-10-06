@@ -1,23 +1,25 @@
-# Condor entrypoint for O3 download:
-# Submit from the project root:
-# condor_submit workflows/condor/download_o3.sub
-# download_o3.sub -> /bin/bash scripts/download_o3.sh -> pipeline.download.download_o3
+# Download the 108 O3b packs from GWOSC, split across $(n_jobs) jobs.
+# Submit from the repository root:
+#   condor_submit workflows/condor/download_o3.sub
+# Override on the command line, e.g.:  condor_submit n_jobs=10 workflows/condor/download_o3.sub
+
+n_jobs     = 5
+packs      = all
+
 executable = /bin/bash
-initialdir = .
+arguments  = scripts/download_o3.sh $(n_jobs) $(Process) $(packs)
 
-n_jobs=5
-arguments = scripts/download_o3.sh $(n_jobs) $(Process)
-
-log = results/logs/download_o3.$(ClusterId).log
+log    = results/logs/download_o3.$(ClusterId).log
 output = results/logs/download_o3.$(ClusterId).$(Process).out
-error = results/logs/download_o3.$(ClusterId).$(Process).err
+error  = results/logs/download_o3.$(ClusterId).$(Process).err
 
-request_cpus = 1
+request_cpus   = 1
 request_memory = 4GB
-request_disk = 8GB
+request_disk   = 8GB
 
-accounting_group = ligo.dev.o4.cw.transient.viterbi
-accounting_group_user = raul.rodriguez
+# LIGO clusters: set your accounting tag.
+accounting_group      = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = $ENV(USER)
 
 on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
 

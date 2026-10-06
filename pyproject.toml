@@ -3,6 +3,36 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "transient-pipeline"
-version = "0.1.0"
-description = "Scientific pipeline for noise-only and injected-signal searches on O3 data."
+name = "pbh-viterbi"
+version = "1.0.0"
+description = "Viterbi search pipeline for planetary-mass primordial black hole binaries in LIGO data (arXiv:2607.18352)."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Raul Rodriguez" },
+    { name = "George Alestas" },
+    { name = "Sachiko Kuroyanagi" },
+    { name = "Juan Garcia-Bellido" },
+]
+dependencies = [
+    "numpy>=2.0",
+    "scipy>=1.11",
+    "pandas>=2.0",
+    "matplotlib>=3.8",
+    "pycbc>=2.9",
+    "gwpy>=3.0",
+    "lalsuite>=7.26",
+    "soapcw>=0.2.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+pbh_viterbi = ["sft/make_sfts.sh"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

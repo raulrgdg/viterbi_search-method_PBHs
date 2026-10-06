@@ -1,99 +1,126 @@
-# Viterbi tCW Search Pipeline
+# pbh-viterbi
 
-A scientific pipeline for searching sub-solar mass gravitational-wave transients, in particular primordial black hole (PBH) binary mergers, in LIGO O3 strain data using a Viterbi-based frequency tracking algorithm.
+Search for gravitational waves from **planetary-mass primordial black hole
+binaries** (chirp masses 10⁻⁴–10⁻¹ M☉) in LIGO data, using the Viterbi
+algorithm.
 
-## What Is This
+This is the code of
+[*Search for Planetary-mass Black Holes with an Improved Viterbi Algorithm*](https://arxiv.org/abs/2607.18352)
+(R. Rodriguez, G. Alestas, S. Kuroyanagi, J. Garcia-Bellido).
 
-This pipeline implements the search method described in *"Search for gravitational waves from primordial black hole binaries using the Viterbi algorithm"* (Raúl Rodríguez et al.). It targets the inspiral chirp track of sub-solar compact binary mergers in the frequency band ~61–127 Hz over the LIGO O3 observing run.
+**Version 1.0** — first public release, used for the results of the paper.
 
-The core idea: the GW frequency evolves as f(t) ∝ (t_c − t)^{−3/8}. After a coordinate remap f^{−8/3} → linear, this chirp becomes a near-straight path in time–frequency space, which a Viterbi HMM tracker (via `soapcw`) can follow efficiently without matched filtering.
+## How the search works
 
-Two search modes are available:
+These binaries spend hours to months in the LIGO band, so their signal is a
+long, slowly chirping track. For each 32768 s chunk of strain data the pipeline:
 
-- **`noise_search`** — runs the full chain on real O3 strain to identify candidates.
-- **`injected_search`** — injects synthetic chirp signals into real noise before running the same chain, for sensitivity characterization.
+1. **Builds time-frequency maps** with `lalpulsar_MakeSFTs` for 13 SFT lengths
+   (2–88 s) in 61.1–126.8 Hz, and remaps them to (t, f⁻⁸ᐟ³), where an
+   inspiral is a straight line whose slope depends only on the chirp mass.
+2. **Tracks** the most likely path through each map with the Viterbi
+   algorithm ([soapcw](https://pypi.org/project/soapcw/)).
+3. **Isolates the candidate**: picks the most significant map (nσ), finds the
+   part of the track that best follows an inspiral (NMSE) and refines its edges.
+4. **Ranks** it by (nσ, NMSE) against a threshold set at a fixed false-alarm
+   ratio, and estimates the chirp mass.
 
-## Based On
+## What you can do
 
-- [SOAP / soapcw](https://github.com/jcbayley/soapcw) — the Viterbi HMM power tracker used for SFT-domain path finding.
-- A previous repository by G. Alestas.
-- LIGO O3 public strain data via GWOSC.
-- PyCBC — used for frame I/O and waveform parameter conversions in the injection workflow.
+- Run the search on LIGO O3b noise, or on noise with simulated inspirals injected.
+- Run large campaigns on HTCondor or Slurm clusters.
+- Calibrate the detection threshold and measure the distance reach.
+- Reproduce every figure of the paper.
 
-## Repository Layout
-
-```
-src/pipeline/
-  noise_search/main.py       # noise-only workflow entrypoint
-  injected_search/main.py    # injection workflow entrypoint
-  sft/tracking.py            # Viterbi SFT tracker + frequency remap
-  search_candidates.py       # candidate search driver (shared)
-  calibration/               # detection threshold helpers
-  analysis/                  # post-processing & plotting scripts
-  tools/                     # parameter-space utilities
-scripts/                     # shell wrappers called by HPC submissions
-workflows/
-  condor/                    # HTCondor .sub files
-  slurm/                     # Slurm .slurm files
-campaigns/injection_600/     # 600-signal injection campaign helpers
-data/raw/o3/                 # raw O3 strain packs (target location)
-results/                     # reports, plots, logs
-```
-
-## Usage
-
-### On an HPC Cluster
-
-The pipeline is designed to fan out over O3 data "packs" (108 total). Each job processes one pack; the scheduler handles parallelism.
-
-**HTCondor:**
-```bash
-condor_submit workflows/condor/download_o3.sub
-condor_submit workflows/condor/run_noise_search.sub
-condor_submit workflows/condor/run_injected_search.sub
-```
-
-**Slurm:**
-```bash
-sbatch workflows/slurm/download_o3.slurm
-sbatch workflows/slurm/run_noise_search.slurm
-sbatch workflows/slurm/run_injected_search.slurm
-```
-
-For large injection campaigns across multiple clusters, use the automation helpers in `campaigns/injection_600/`:
-```bash
-# HTCondor (HPC1)
-bash campaigns/injection_600/submit_condor_chain.sh
-
-# Slurm (HPC2 / HPC3)
-CLUSTER=HPC2 bash campaigns/injection_600/submit_slurm_chain.sh
-```
-
-Each chain submits packs sequentially with `afterok` dependencies so the next pack only starts if the previous succeeds.
-
-### Quick Local Run (No HPC)
-
-Run a single pack directly from the repo root:
+## Installation
 
 ```bash
-# Download one O3 pack
-bash scripts/download_o3.sh 5 0
-
-# Noise-only search on pack 108, job slot 0
-bash scripts/run_noise_search.sh 108 0
-
-# Injected search: pack 400, job slot 0, signal index 3
-bash scripts/run_injected_search.sh 400 0 3
-```
-
-### Installation
-
-```bash
+conda env create -f environment.yml
+conda activate pbh-viterbi
 pip install -e .
+pytest
 ```
 
-Requires `soapcw`, `pycbc`, `numpy`, and standard LIGO frame utilities.
+Requires Python 3.10 with LALSuite (including `lalpulsar_MakeSFTs`), PyCBC,
+GWpy and soapcw.
 
-## Output
+## Quick start
 
-Results are written to `results/reports/` as CSV files (one per pack), then merged. Key columns: pack id, Viterbi score, candidate frequency track, estimated chirp mass, detection metrics (nσ, NMSE).
+Download one chunk of O3b Hanford data (108 chunks are available, ~130 MB each):
+
+```bash
+python -m pbh_viterbi.o3.download --packs 3
+```
+
+Search it (noise only):
+
+```bash
+python -m pbh_viterbi.workflows.noise_search --packs 3
+```
+
+Inject a simulated inspiral and search it:
+
+```bash
+python -m pbh_viterbi.workflows.injected_search --pack 3 --signals 300:301
+```
+
+Each run writes one row per analysed chunk to `results/search/`, with the
+detection statistics (`nsigma`, `nmse`), the estimated chirp mass (`mass`)
+and the injected parameters. A chunk takes ~30 min on a 24-core machine,
+almost all of it building SFTs (`--threads` sets the number of parallel SFT
+processes).
+
+All search parameters (band, SFT lengths, injected population, thresholds)
+are in [`src/pbh_viterbi/config.py`](src/pbh_viterbi/config.py).
+
+## Running on a cluster
+
+Submit from the repository root, after setting your environment in `scripts/env.sh`:
+
+```bash
+condor_submit workflows/condor/noise_search.sub            # 108 chunks, one per job
+condor_submit pack=3 workflows/condor/injected_search.sub  # 200 injections, one per job
+sbatch --export=ALL,PACK=3 workflows/slurm/injected_search.slurm
+```
+
+The full injection campaign of the paper (600 signals in 90 chunks, split
+across three clusters) is described in
+[`workflows/campaign_600/`](workflows/campaign_600/README.md).
+
+Then merge the results, fit the false-alarm threshold and compute the distance reach:
+
+```bash
+python analysis/merge_results.py results/search results/search/injected.csv \
+    --pattern "search_results_injected_pack-*.csv"
+python analysis/compute_threshold.py --noise-csv results/search/search_results_noise.csv \
+    --signal-csv results/search/injected.csv --output results/search/threshold.json
+python figures/fig6_distance_reach.py --campaign-csv results/search/injected.csv \
+    --threshold results/search/threshold.json
+```
+
+## Paper figures
+
+```bash
+python figures/fig5_trigger_plane.py      # fig1_... to fig8_...
+```
+
+Figures 1, 3 and 5–8 are drawn from the data in `paper_data/` in seconds.
+Figures 2 and 4 inject a signal into O3b chunks 8 and 10 (download them
+first) and take ~30 min the first time. Plots are written to `results/plots/`.
+
+## Repository layout
+
+| Path | Content |
+|---|---|
+| `src/pbh_viterbi/` | the pipeline: data, waveforms, SFTs, Viterbi, statistics, threshold |
+| `workflows/`, `scripts/` | HTCondor and Slurm submit files and job wrappers |
+| `analysis/` | merging, noise background, threshold, PSD and SNR |
+| `figures/` | Figs. 1–8 of the paper |
+| `tools/` | search design: optimal band, SFT lengths, injection times |
+| `studies/strong_scaling/` | SFT generation benchmark |
+| `paper_data/` | search results and calibration data of the paper ([details](paper_data/README.md)) |
+
+## Citation
+
+If you use this code, please cite [arXiv:2607.18352](https://arxiv.org/abs/2607.18352).
+The TaylorT3 waveform implementation is by G. Morrás.

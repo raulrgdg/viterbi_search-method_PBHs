@@ -1,2 +1,0 @@
-best_threads=256
-best_elapsed_sec=15.572

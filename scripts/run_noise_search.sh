@@ -1,14 +1,9 @@
 #!/bin/bash
+# Usage: scripts/run_noise_search.sh N_JOBS JOB_ID [MODE] [PACKS]
+#   MODE: search (default) or background
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-
-source /cvmfs/software.igwn.org/conda/etc/profile.d/conda.sh
-conda activate vit
-
-cd "${PROJECT_ROOT}"
-PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}" \
-python3 -u -m pipeline.noise_search.main \
-    --n-jobs "$1" \
-    --job-id "$2"
+python -u -m pbh_viterbi.workflows.noise_search \
+    --n-jobs "$1" --job-id "$2" --mode "${3:-search}" --packs "${4:-all}" \
+    --threads "${MAKE_SFT_THREADS:-256}"

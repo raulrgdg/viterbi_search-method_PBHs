@@ -1,14 +1,6 @@
 #!/bin/bash
+# Usage: scripts/download_o3.sh N_JOBS JOB_ID [PACKS]
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-
-source /cvmfs/software.igwn.org/conda/etc/profile.d/conda.sh
-conda activate vit
-
-cd "${PROJECT_ROOT}"
-PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}" \
-python3 -u -m pipeline.download.download_o3 \
-    --n-jobs "$1" \
-    --job-id "$2"
+python -u -m pbh_viterbi.o3.download --n-jobs "$1" --job-id "$2" --packs "${3:-all}"

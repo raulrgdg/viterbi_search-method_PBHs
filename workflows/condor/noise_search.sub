@@ -1,0 +1,27 @@
+# Noise-only search over the O3b packs, one pack per job by default.
+# Submit from the repository root:
+#   condor_submit workflows/condor/noise_search.sub
+#   condor_submit mode=background workflows/condor/noise_search.sub   # nsigma background
+# Output: results/search/search_results_noise.csv (or noise_track_power.csv)
+
+n_jobs     = 108
+mode       = search
+packs      = all
+
+executable = /bin/bash
+arguments  = scripts/run_noise_search.sh $(n_jobs) $(Process) $(mode) $(packs)
+
+log    = results/logs/noise_search.$(ClusterId).log
+output = results/logs/noise_search.$(ClusterId).$(Process).out
+error  = results/logs/noise_search.$(ClusterId).$(Process).err
+
+request_cpus   = 16
+request_memory = 8GB
+request_disk   = 8GB
+
+accounting_group      = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = $ENV(USER)
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue $(n_jobs)

@@ -1,0 +1,27 @@
+# Injected search on one O3b pack: the pack's 200-signal campaign slice,
+# one signal per job.
+# Submit from the repository root:
+#   condor_submit pack=1 workflows/condor/injected_search.sub
+# To chain all packs of a cluster, use workflows/campaign_600/submit_condor_chain.sh.
+# Output: results/search/search_results_injected_pack-<pack>.csv
+
+n_jobs     = 200
+pack       = 1
+
+executable = /bin/bash
+arguments  = scripts/run_injected_search.sh $(n_jobs) $(Process) $(pack)
+
+log    = results/logs/injected_search_pack-$(pack).$(ClusterId).log
+output = results/logs/injected_search_pack-$(pack).$(ClusterId).$(Process).out
+error  = results/logs/injected_search_pack-$(pack).$(ClusterId).$(Process).err
+
+request_cpus   = 8
+request_memory = 12GB
+request_disk   = 12GB
+
+accounting_group      = ligo.dev.o4.cw.transient.viterbi
+accounting_group_user = $ENV(USER)
+
+on_exit_hold = (ExitBySignal == True) || (ExitCode != 0)
+
+queue $(n_jobs)

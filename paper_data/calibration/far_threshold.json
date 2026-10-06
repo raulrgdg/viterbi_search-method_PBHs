@@ -1,0 +1,21 @@
+{
+  "model": "nsigma_threshold = polyval(coefficients, log10(nmse))",
+  "basis": "log10_nmse",
+  "degree": 4,
+  "coefficients": [
+    -0.4848835105297669,
+    -0.4622383561139697,
+    0.9366112652341229,
+    1.4029330087166527,
+    5.350556421483117
+  ],
+  "intercept": 0.0,
+  "far_limit": 0.04,
+  "noise_triggers_total": 108,
+  "false_positives": 4,
+  "far": 0.037037037037037035,
+  "signal_triggers": 16447,
+  "signals_recovered": 9940,
+  "noise_csv": "noise_search_O3b_H1_108packs.csv",
+  "signal_csv": "injected_search_O3b_H1_90packs.csv"
+}
