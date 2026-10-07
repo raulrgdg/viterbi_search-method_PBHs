@@ -68,7 +68,7 @@ Each run writes one row per analysed chunk to `results/search/`, with the
 detection statistics (`nsigma`, `nmse`), the estimated chirp mass (`mass`)
 and the injected parameters. A chunk takes ~30 min on a 24-core machine,
 almost all of it building SFTs (`--threads` sets the number of parallel SFT
-processes).
+processes). See [docs/computational_cost.md](docs/computational_cost.md) for timing, memory and scaling.
 
 All search parameters (band, SFT lengths, injected population, thresholds)
 are in [`src/pbh_viterbi/config.py`](src/pbh_viterbi/config.py).
@@ -117,7 +117,8 @@ first) and take ~30 min the first time. Plots are written to `results/plots/`.
 | `analysis/` | merging, noise background, threshold, PSD and SNR |
 | `figures/` | Figs. 1–8 of the paper |
 | `tools/` | search design: optimal band, SFT lengths, injection times |
-| `studies/strong_scaling/` | SFT generation benchmark |
+| `studies/` | benchmarks of SFT generation and of the search stages |
+| `docs/` | [computational cost](docs/computational_cost.md) of the search |
 | `paper_data/` | search results and calibration data of the paper ([details](paper_data/README.md)) |
 
 ## Citation
