@@ -1,0 +1,4 @@
+pack,mchirp,distance,ra,dec,pol,candidate,nmse,nsigma,mass,tsft,injected,status
+4,,,,,,False,0.3386768018843676,-0.311037753115942,0.003213108168886681,5,0,rejected_linear_threshold
+37,,,,,,False,0.009746493966938417,-0.23062356570427378,0.0032027664926111057,35,0,rejected_linear_threshold
+49,,,,,,False,0.684193899823435,-0.8870849604201901,0.002154352007997627,5,0,rejected_linear_threshold
