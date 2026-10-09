@@ -56,3 +56,19 @@ node, so the whole 108-chunk noise search drops from a cluster run to ~1 h in a
 single process. The node had other users' jobs running (load ~15/24); on an
 idle node the total was ~24 s (`../results/timing_fmax127.2.csv`). During
 test 1, sharing the node with tests 2 and 3, it was 41 s (27–64 s).
+
+## Memory per chunk
+
+Peak memory (maximum resident set size, `/usr/bin/time -v`) of the whole
+fast_sft noise search of one chunk, 13 Tsft, one process (packs 9 and 40):
+
+| | Peak memory |
+|---|---|
+| fast_sft search, total | **1.6 GB** |
+| of which Python imports (LAL, PyCBC, soapcw) | 0.66 GB |
+| of which data (strain 134 MB, SFTs of one Tsft, 13 remapped maps ≈ 0.2 GB) | ~0.9 GB |
+
+No disk space is needed: nothing is written. With MakeSFTs the campaign jobs
+used a median of 2.0 GB (90% below 9.9 GB, mostly the concurrent MakeSFTs
+processes) plus scratch disk for the frames and SFT files
+(`../../docs/computational_cost.md`).
