@@ -43,6 +43,16 @@ fast_sft in one process):
 MakeSFTs time scales as 1/Tsft (number of SFT files); fast_sft is ~1.2 s for
 every Tsft (the FFT work is the same, only the segment length changes).
 
-Whole noise search per chunk with fast_sft (test 1: reading frames, SFTs,
-remapping, Viterbi and candidate search, 13 Tsft): median 41 s (27–64 s,
-node shared with tests 2 and 3).
+**Whole noise search per chunk with fast_sft** (reading frames, SFTs,
+remapping, Viterbi and candidate search, 13 Tsft, one process), run alone on
+packs 3, 9, 40, 77 and 108 (`results/timing_noise_standalone.csv`):
+
+| Stage | Read frames | SFTs (13 Tsft) | Remap + Viterbi | Candidate | **Total** |
+|---|---|---|---|---|---|
+| Median (s) | 7.6 | 18.1 | 4.1 | 0.1 | **31** (28–33) |
+
+For comparison, the same search with MakeSFTs takes ~55 min per chunk on this
+node, so the whole 108-chunk noise search drops from a cluster run to ~1 h in a
+single process. The node had other users' jobs running (load ~15/24); on an
+idle node the total was ~24 s (`../results/timing_fmax127.2.csv`). During
+test 1, sharing the node with tests 2 and 3, it was 41 s (27–64 s).
