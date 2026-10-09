@@ -1,0 +1,52 @@
+Packs: [40, 77]
+/home/raul.rodriguez/.conda/envs/vit/lib/python3.10/site-packages/pycbc/waveform/plugin.py:99: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+pack=40, tsft=2, n_sft=16384, n_bins=131, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=1002.7, time_fast_s=1.81
+Warning: trimming tail of 2s (duration not divisible by Tseg).
+pack=40, tsft=3, n_sft=10922, n_bins=197, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=670.18, time_fast_s=1.81
+pack=40, tsft=4, n_sft=8192, n_bins=263, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=508.28, time_fast_s=3.95
+Warning: trimming tail of 3s (duration not divisible by Tseg).
+pack=40, tsft=5, n_sft=6553, n_bins=328, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=420.43, time_fast_s=1.31
+Warning: trimming tail of 1s (duration not divisible by Tseg).
+pack=40, tsft=7, n_sft=4681, n_bins=460, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=292.66, time_fast_s=1.11
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=40, tsft=10, n_sft=3276, n_bins=657, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=193.91, time_fast_s=1.24
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=40, tsft=13, n_sft=2520, n_bins=854, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=157.64, time_fast_s=1.26
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=40, tsft=18, n_sft=1820, n_bins=1183, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=108.72, time_fast_s=1.2
+Warning: trimming tail of 18s (duration not divisible by Tseg).
+pack=40, tsft=25, n_sft=1310, n_bins=1642, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=86.89, time_fast_s=1.17
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=40, tsft=35, n_sft=936, n_bins=2299, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=59.46, time_fast_s=1.08
+Warning: trimming tail of 9s (duration not divisible by Tseg).
+pack=40, tsft=47, n_sft=697, n_bins=3088, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=44.32, time_fast_s=1.14
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=40, tsft=63, n_sft=520, n_bins=4139, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=33.82, time_fast_s=1.26
+Warning: trimming tail of 32s (duration not divisible by Tseg).
+pack=40, tsft=88, n_sft=372, n_bins=5782, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=25.83, time_fast_s=1.15
+pack=77, tsft=2, n_sft=16384, n_bins=131, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=979.69, time_fast_s=1.28
+Warning: trimming tail of 2s (duration not divisible by Tseg).
+pack=77, tsft=3, n_sft=10922, n_bins=197, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=666.78, time_fast_s=1.23
+pack=77, tsft=4, n_sft=8192, n_bins=263, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=507.49, time_fast_s=1.69
+Warning: trimming tail of 3s (duration not divisible by Tseg).
+pack=77, tsft=5, n_sft=6553, n_bins=328, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=402.75, time_fast_s=1.5
+Warning: trimming tail of 1s (duration not divisible by Tseg).
+pack=77, tsft=7, n_sft=4681, n_bins=460, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=293.03, time_fast_s=1.37
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=77, tsft=10, n_sft=3276, n_bins=657, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=185.06, time_fast_s=1.45
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=77, tsft=13, n_sft=2520, n_bins=854, same_shape=True, sft_identical=False, sft_max_rel_diff=7.407163499533698e-08, map_identical=False, map_max_rel_diff=6.125541834941596e-08, map_pixels_different=1, track_identical=True, track_steps_different=0, time_makesfts_s=159.41, time_fast_s=1.3
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=77, tsft=18, n_sft=1820, n_bins=1183, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=113.57, time_fast_s=1.13
+Warning: trimming tail of 18s (duration not divisible by Tseg).
+pack=77, tsft=25, n_sft=1310, n_bins=1642, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=79.51, time_fast_s=1.01
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=77, tsft=35, n_sft=936, n_bins=2299, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=60.4, time_fast_s=1.32
+Warning: trimming tail of 9s (duration not divisible by Tseg).
+pack=77, tsft=47, n_sft=697, n_bins=3088, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=46.32, time_fast_s=1.27
+Warning: trimming tail of 8s (duration not divisible by Tseg).
+pack=77, tsft=63, n_sft=520, n_bins=4139, same_shape=True, sft_identical=False, sft_max_rel_diff=6.581622864352107e-11, map_identical=False, map_max_rel_diff=1.1213600255965059e-14, map_pixels_different=2, track_identical=True, track_steps_different=0, time_makesfts_s=35.83, time_fast_s=1.28
+Warning: trimming tail of 32s (duration not divisible by Tseg).
+pack=77, tsft=88, n_sft=372, n_bins=5782, same_shape=True, sft_identical=True, sft_max_rel_diff=0.0, map_identical=True, map_max_rel_diff=0.0, map_pixels_different=0, track_identical=True, track_steps_different=0, time_makesfts_s=24.85, time_fast_s=1.14
+DONE
