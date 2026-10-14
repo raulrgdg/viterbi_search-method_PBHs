@@ -1,0 +1,15 @@
+/home/raul.rodriguez/.conda/envs/vit/lib/python3.10/site-packages/pycbc/waveform/plugin.py:99: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Mc=0.004472 dL=0.01155 pack 57: predicted 25 s, selected 25 s, nsigma=5.66
+Mc=0.006316 dL=0.005623 pack 6: predicted 25 s, selected 25 s, nsigma=29.68
+Mc=0.008921 dL=0.001778 pack 93: predicted 18 s, selected 18 s, nsigma=482.19
+Mc=0.008921 dL=0.02054 pack 92: predicted 18 s, selected 18 s, nsigma=26.99
+Mc=0.0126 dL=0.0154 pack 43: predicted 13 s, selected 13 s, nsigma=24.81
+Mc=0.01779 dL=0.01155 pack 94: predicted 10 s, selected 10 s, nsigma=27.22
+Mc=0.02513 dL=0.005623 pack 77: predicted 7 s, selected 7 s, nsigma=58.34
+Mc=0.0355 dL=0.001778 pack 2: predicted 5 s, selected 5 s, nsigma=56.96
+Mc=0.0355 dL=0.02054 pack 82: predicted 5 s, selected 5 s, nsigma=26.15
+Mc=0.05013 dL=0.0154 pack 46: predicted 4 s, selected 4 s, nsigma=10.42
+Mc=0.0708 dL=0.01155 pack 25: predicted 3 s, selected 3 s, nsigma=19.03
+Mc=0.1 dL=0.005623 pack 82: predicted 2 s, selected 2 s, nsigma=38.14
+DONE
