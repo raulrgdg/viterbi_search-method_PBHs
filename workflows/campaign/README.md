@@ -1,0 +1,38 @@
+# 600-signal injection campaign (paper, Sec. III B)
+
+The campaign injects the 600-signal population of Table I (20 chirp masses ×
+30 distances) into O3b packs. Each pack receives a 200-signal slice of the
+population (`src/pbh_viterbi/campaign.py`):
+
+| Slice (paper cluster) | Packs                  | Signals  |
+|-----------------------|------------------------|----------|
+| HPC1                  | 1-12, 37-48, 73-84     | [0, 200)   |
+| HPC2                  | 13-24, 49-60, 85-96    | [200, 400) |
+| HPC3                  | 25-36, 61-72, 97-108   | [400, 600) |
+
+The default campaign (`CAMPAIGN=paper`) uses the same 90 packs as the paper
+(every signal in ~30 noise realisations, 18000 injections), so that a re-run is
+directly comparable; `CAMPAIGN=all` uses the 108 packs. In the paper the three
+slices ran on three clusters with `lalpulsar_MakeSFTs`; with in-memory SFTs a
+single cluster or machine runs the whole campaign (~380 core-hours with the
+95% Tsft list, ~220 with the 90% list; see `docs/computational_cost.md`).
+
+```bash
+# one machine, 8 processes (resumable: complete packs are skipped)
+bash scripts/run_local.sh injected 8
+# HTCondor / Slurm: 10 jobs per pack, all packs submitted at once
+bash workflows/campaign/submit_condor.sh
+bash workflows/campaign/submit_slurm.sh
+```
+
+Each pack produces `results/search/search_results_injected_pack-<pack>.csv`
+(with the sky location, polarisation, inclination and time to merger of every
+injection). Merge them with
+
+```bash
+python analysis/merge_results.py results/search results/search/injected_campaign.csv \
+    --pattern "search_results_injected_pack-*.csv"
+```
+
+If the O3 data are staged elsewhere (e.g. copied to a cluster without GWOSC
+access), point the pipeline to them with `export PBH_VITERBI_O3_DIR=/path/to/O3-data`.

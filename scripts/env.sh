@@ -20,4 +20,12 @@ elif [[ -f /cvmfs/software.igwn.org/conda/etc/profile.d/conda.sh ]]; then
 fi
 
 export PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
+
+# The search is single-threaded: one thread per process avoids oversubscribing
+# shared nodes (and per-user thread limits) when many jobs run side by side.
+export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
+
+# Search options read by the job wrappers (override before submitting):
+#   TSFT_LIST   95 (default) | 90 | paper
+#   SFT_METHOD  fast (default) | makesfts
 cd "${PROJECT_ROOT}"

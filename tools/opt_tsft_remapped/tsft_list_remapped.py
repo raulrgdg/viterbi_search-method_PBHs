@@ -11,7 +11,7 @@ one-linear-bin condition of Eq. (14):
   * for s > s_max it cannot follow it and nsigma drops to ~0.
 
 Normalised per chirp mass, nsigma(Mc, Tsft) / max = sqrt(Tsft / T_lim) if
-s <= s_max, else 0. Measured on 1000 injections (sft-gen-fast/fast-test):
+s <= s_max, else 0. Measured on 1000 injections (docs/tsft_optimum.md):
 nsigma follows sqrt(Tsft) within ~10% for s <= 1 and keeps < 12% of it for
 s >= 1.1; s_max = 1.03 keeps Mc = 0.085 at Tsft = 3 s (s = 1.013), as measured.
 

@@ -37,7 +37,7 @@ def main():
     print(" Tsft  n_SFT  n_bins   pixels  remap[s]  viterbi[s]  candidate[s]")
     totals = np.zeros(3)
     for tsft in TSFT_VALUES:
-        nbins, nsft = n_frequency_bins(tsft), PACK_DURATION // tsft
+        nbins, nsft = n_frequency_bins(tsft), int(PACK_DURATION // tsft)
         geometry = build_remap_geometry(tsft, FMIN, nbins)
         sft = rng.normal(size=(nbins, nsft)) + 1j * rng.normal(size=(nbins, nsft))
 
@@ -52,7 +52,7 @@ def main():
 
         times = np.array([t1 - t0, t2 - t1, t3 - t2])
         totals += times
-        print(f"{tsft:5d} {nsft:6d} {nbins:7d} {nsft * nbins:8d} {times[0]:9.2f} {times[1]:11.2f} {times[2]:13.2f}")
+        print(f"{tsft:7g} {nsft:6d} {nbins:7d} {nsft * nbins:8d} {times[0]:9.2f} {times[1]:11.2f} {times[2]:13.2f}")
 
     print(f"total remap {totals[0]:.1f} s, Viterbi {totals[1]:.1f} s (all Tsft); "
           f"candidate search {totals[2] / len(TSFT_VALUES):.2f} s on average for the selected Tsft")

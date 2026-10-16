@@ -52,16 +52,29 @@ def total_track_power(track_index, power):
     return np.sum(window_powers(track_index, power, 1)[2])
 
 
+def tsft_key(tsft):
+    """Dictionary key of an SFT duration (Tsft may be non-integer, e.g. 2.625 s)."""
+    return round(float(tsft), 6)
+
+
 def load_noise_background(path):
     """Read the per-Tsft mean and std of the noise track power.
 
-    Returns two dicts ``{tsft: mean}`` and ``{tsft: std}``.
+    Returns two dicts ``{tsft: mean}`` and ``{tsft: std}`` keyed by ``tsft_key``.
     """
     df = pd.read_csv(path)
-    df["tsft"] = df["tsft"].astype(int)
-    means = dict(zip(df["tsft"], df["mean_total_power"], strict=False))
-    stds = dict(zip(df["tsft"], df["std_total_power"], strict=False))
+    keys = [tsft_key(t) for t in df["tsft"]]
+    means = dict(zip(keys, df["mean_total_power"], strict=True))
+    stds = dict(zip(keys, df["std_total_power"], strict=True))
     return means, stds
+
+
+def check_background(tsft_values, noise_means, path=""):
+    """Fail early if the nsigma background lacks some of the Tsft to be searched."""
+    missing = [t for t in tsft_values if tsft_key(t) not in noise_means]
+    if missing:
+        raise ValueError(f"The nsigma background {path} has no entry for Tsft {missing}; compute it with "
+                         "noise_search --mode background and analysis/noise_background_stats.py.")
 
 
 def select_best_tsft(tsft_results, noise_means, noise_stds, threshold=NSIGMA_SELECTION_THRESHOLD):
@@ -75,9 +88,9 @@ def select_best_tsft(tsft_results, noise_means, noise_stds, threshold=NSIGMA_SEL
     opt_tsft, opt_nsigma, found_above = 0, -np.inf, False
 
     for result in tsft_results:
-        tsft = int(result["tsft"])
+        tsft = tsft_key(result["tsft"])
         nsigma = (total_track_power(result["track_index"], result["power"]) - noise_means[tsft]) / noise_stds[tsft]
-        log.debug("tsft=%d s: nsigma=%.4f", tsft, nsigma)
+        log.debug("tsft=%g s: nsigma=%.4f", tsft, nsigma)
 
         if nsigma > best_overall:
             best_overall = nsigma

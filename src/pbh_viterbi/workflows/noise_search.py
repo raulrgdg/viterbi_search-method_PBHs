@@ -9,28 +9,33 @@ Two modes:
   background  Write the total Viterbi track power of each pack and Tsft to
               results/search/noise_track_power.csv. Summarise it with
               analysis/noise_background_stats.py to obtain the mean/std per
-              Tsft that normalise nsigma (Eq. 17).
+              Tsft that normalise nsigma (Eq. 17). Needed once per Tsft list
+              and band; calibration/ holds the files of the shipped lists.
+
+The SFT durations come from --tsft-list (default "95"), the band from
+config.py (61.1-126.8 Hz), the same for every search product.
 
 Examples:
-    python -m pbh_viterbi.workflows.noise_search --packs 1-108 --n-jobs 108 --job-id 0
-    python -m pbh_viterbi.workflows.noise_search --mode background --packs 3
+    python -m pbh_viterbi.workflows.noise_search --packs 3
+    python -m pbh_viterbi.workflows.noise_search --packs all --n-jobs 108 --job-id 0
+    python -m pbh_viterbi.workflows.noise_search --mode background --tsft-list 90 --packs all
 """
 
 import logging
-import tempfile
 
 from pbh_viterbi.jobs import split_for_job
-from pbh_viterbi.o3.frames import write_raw_framecache
+from pbh_viterbi.o3.frames import read_pack_frames, write_raw_framecache
 from pbh_viterbi.o3.packs import pack_window, parse_pack_list
 from pbh_viterbi.results import FIELDNAMES, append_rows, csv_name, finish_shard, result_row, shard_path, write_rows
 from pbh_viterbi.search.candidates import search_candidate
-from pbh_viterbi.search.power import load_noise_background, total_track_power
+from pbh_viterbi.search.power import check_background, load_noise_background, total_track_power
 from pbh_viterbi.workflows.common import (
     add_common_arguments,
+    chunk_products,
     existing_pack_dir,
     new_parser,
+    resolve_tsft_and_background,
     setup_logging,
-    tsft_products,
 )
 
 log = logging.getLogger(__name__)
@@ -43,19 +48,19 @@ def parse_args():
     parser = add_common_arguments(new_parser(__doc__))
     parser.add_argument("--mode", choices=("search", "background"), default="search")
     parser.add_argument("--packs", default="all", help='"all", "5", "1,2,3" or "1-12,37-48".')
-    return parser.parse_args()
+    return resolve_tsft_and_background(parser.parse_args())
 
 
 def process_pack(pack, args, noise_background):
     t_start, t_end = pack_window(pack)
     pack_dir = existing_pack_dir(pack, args.o3_dir)
-    with tempfile.TemporaryDirectory(prefix=f"noise-pack{pack}-") as work_dir:
-        framecache = write_raw_framecache(f"{work_dir}/framecache", pack_dir, t_start)
-        products = tsft_products(args.tsft, t_start, t_end, framecache, args.threads, args.fmin, args.fmax, args.verbose)
+    segments = read_pack_frames(pack_dir, t_start) if args.sft_method == "fast" else None
+    products = chunk_products(args, segments, t_start, t_end,
+                              lambda work_dir: write_raw_framecache(f"{work_dir}/framecache", pack_dir, t_start))
 
     if args.mode == "background":
         return [
-            {"pack": pack, "tsft": int(p["tsft"]), "total_power": float(total_track_power(p["track_index"], p["power"]))}
+            {"pack": pack, "tsft": float(p["tsft"]), "total_power": float(total_track_power(p["track_index"], p["power"]))}
             for p in products
         ]
     return [result_row(pack, search_candidate(products, *noise_background), injected=False)]
@@ -67,11 +72,15 @@ def main():
 
     background = args.mode == "background"
     name, fields = (BACKGROUND_CSV, BACKGROUND_FIELDS) if background else (csv_name(injected=False), FIELDNAMES)
-    noise_background = None if background else load_noise_background(args.noise_background)
+    noise_background = None
+    if not background:
+        noise_background = load_noise_background(args.noise_background)
+        check_background(args.tsft, noise_background[0], args.noise_background)
 
     packs = split_for_job(parse_pack_list(args.packs), args.n_jobs, args.job_id)
     output = shard_path(name, args.n_jobs, args.job_id)
-    log.info("Job %d/%d (%s mode): packs %s -> %s", args.job_id, args.n_jobs, args.mode, packs, output)
+    log.info("Job %d/%d (%s mode, %s SFTs, %d Tsft): packs %s -> %s", args.job_id, args.n_jobs, args.mode,
+             args.sft_method, len(args.tsft), packs, output)
     write_rows([], output, fields)
 
     for index, pack in enumerate(packs, start=1):

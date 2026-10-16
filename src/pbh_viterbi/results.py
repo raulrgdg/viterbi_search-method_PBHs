@@ -18,9 +18,12 @@ log = logging.getLogger(__name__)
 
 FIELDNAMES = [
     "pack",       # O3b pack id
+    "signal_id",  # index of the injected signal in the population grid; empty for noise
     "mchirp",     # injected chirp mass (Msun); empty for noise
     "distance",   # injected luminosity distance (Mpc); empty for noise
     "ra", "dec", "pol",  # injected sky location and polarisation (rad); empty for noise
+    "inclination",  # injected inclination (rad); empty for noise
+    "t_to_merger",  # time from the start of the pack to coalescence (s); empty for noise
     "candidate",  # passes the provisional linear threshold
     "nmse",       # NMSE of the isolated candidate (Eq. 22-23)
     "nsigma",     # nsigma of the selected Tsft (Eq. 17)
@@ -39,16 +42,26 @@ def _fmt(value):
     return value
 
 
-def result_row(pack, search_result, injected, mchirp=None, distance=None, sky=None):
-    """Assemble one CSV row from the output of search.candidates.search_candidate."""
+def result_row(pack, search_result, injected, mchirp=None, distance=None, sky=None, signal_id=None,
+               inclination=None, t_to_merger=None):
+    """Assemble one CSV row from the output of search.candidates.search_candidate.
+
+    For injections, the row stores every parameter needed to regenerate the
+    signal (signal id, chirp mass, distance, sky, polarisation, inclination,
+    time to merger), so its optimal SNR can be computed afterwards
+    (analysis/injection_snr.py).
+    """
     sky = sky or {}
     row = {
         "pack": int(pack),
+        "signal_id": int(signal_id) if signal_id is not None else None,
         "mchirp": float(mchirp) if mchirp is not None else None,
         "distance": float(distance) if distance is not None else None,
         "ra": sky.get("ra"),
         "dec": sky.get("dec"),
         "pol": sky.get("pol"),
+        "inclination": float(inclination) if inclination is not None else None,
+        "t_to_merger": float(t_to_merger) if t_to_merger is not None else None,
         "candidate": bool(search_result["candidate"]),
         "nmse": search_result["nmse"],
         "nsigma": search_result["nsigma"],

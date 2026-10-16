@@ -12,7 +12,7 @@ K * Tsft <= dx, i.e.
 with dtau_band the time the signal takes to cross the band. For 61.1-126.8 Hz,
 T_lim ~= 17.7 s (Mc / 1e-2 Msun)^(-5/6). The selected Tsft is the largest
 grid value <= T_lim (checked with 100 injections, see
-sft-gen-fast/fast-test/README.md). For comparison the plot also shows the
+docs/tsft_optimum.md). For comparison the plot also shows the
 paper Eq. (14), one linear frequency bin per SFT at f1.
 
     python tools/opt_tsft_remapped/plot_tsft_lim.py
@@ -59,7 +59,7 @@ def main():
     parser.add_argument("--mchirp-max", type=float, default=0.1, help="Msun")
     parser.add_argument("--max-bins-per-step", type=int, default=1, help="Largest Viterbi jump (bins per step).")
     parser.add_argument("--measured", type=Path, help="Optional CSV with columns mchirp, tsft_selected "
-                                                      "(e.g. fast-test/results/tsft_formula.csv) to overlay.")
+                                                      "(e.g. the output of a selection test) to overlay.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
 

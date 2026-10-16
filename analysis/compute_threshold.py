@@ -13,12 +13,20 @@ Triggers with NMSE > 10 are ignored in the fit. Among the degrees that meet
 the FAR limit, the one recovering most signals wins (ties: lower FAR, then
 lower degree).
 
-The paper threshold (paper_data/calibration/far_threshold.json) is reproduced with
+For a new search, pass its noise and injected results:
 
-    python analysis/compute_threshold.py
+    python analysis/compute_threshold.py --far-limit 0.03 \
+        --noise-csv results/search/search_results_noise.csv --signal-csv results/search/injected_campaign.csv
 
-which allows 4 of the 108 noise triggers above the curve (--far-limit 0.04,
-i.e. FAR = 3.7%). Takes ~10-20 min.
+--far-limit (the maximum fraction of noise chunks allowed above the threshold)
+has no default: it is a choice of the analysis. With N noise chunks only the
+values k/N can be reached (108 chunks: steps of 0.93%). The paper threshold
+(paper_data/calibration/far_threshold.json) allowed 4 of the 108 noise triggers
+(3.7%; the paper text quotes 3%) and is reproduced with
+
+    python analysis/compute_threshold.py --far-limit 0.04
+
+(defaults: the paper result files). Takes ~10-20 min.
 """
 
 import argparse
@@ -86,7 +94,8 @@ def main():
                         default=PAPER_DATA_DIR / "search_results" / "noise_search_O3b_H1_108packs.csv")
     parser.add_argument("--signal-csv", type=Path,
                         default=PAPER_DATA_DIR / "search_results" / "injected_search_O3b_H1_90packs.csv")
-    parser.add_argument("--far-limit", type=float, default=0.04)
+    parser.add_argument("--far-limit", type=float, required=True,
+                        help="Maximum fraction of noise chunks above the threshold (no default: choose it).")
     parser.add_argument("--output", type=Path, default=SEARCH_RESULTS_DIR / "far_threshold.json")
     args = parser.parse_args()
 

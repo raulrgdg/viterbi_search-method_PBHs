@@ -1,82 +1,101 @@
 #!/usr/bin/env python3
-"""Optimal search band [f0, f*] for a detector noise curve, Eq. (13).
+"""Optimal search band [f0, f*] for a detector noise curve.
 
-Maximises F(f0, f*) = f0^(2/3) / f*^(11/24) * sqrt( int_{f0}^{f*} df / (f^(7/3) S_n(f)) )
-and plots F / F_max over the (f0, f*) plane. For the O3 PSD the optimum is
-f0 = 61.1 Hz, f* = 126.8 Hz; for the A+ design (O5) 57.5 Hz and 134.4 Hz.
+Maximises Eq. (2.30) of arXiv:2401.02314 (Eq. 13 of the paper),
 
-    python tools/optimal_freq_range.py --psd o3
-    python tools/optimal_freq_range.py --psd aplus
+    F(f0, f*) = f0^(2/3) f*^(-11/24) sqrt( int_{f0}^{f*} df / (f^(7/3) S_n(f)) ),
+
+by brute force on a 0.1 Hz grid of (f0, f*), using a cumulative integral.
+For the O3 noise curve (aLIGOAdVO3LowT1800545) the optimum is f0 = 61.1 Hz,
+f* = 126.8 Hz, F = 7.77e21 Hz^(1/24), as in Fig. 1 of arXiv:2401.02314; for
+the A+ design (O5), f0 ≈ 57.4 Hz, f* ≈ 134 Hz (flat maximum; the last digit
+depends on how the tabulated curve is interpolated).
+
+The noise curve must cover the whole band well: a PSD measured on data
+resampled to 512 Hz is suppressed by the anti-aliasing filter above ~150 Hz
+and pushes the optimum to the edge of the data.
+
+    python tools/optimal_freq_range.py                    # O3
+    python tools/optimal_freq_range.py --psd aplus        # A+ design (O5)
+    python tools/optimal_freq_range.py --psd-file psd.txt # two columns: f (Hz), PSD (1/Hz)
 """
 
 import argparse
 from pathlib import Path
 
-import matplotlib
-
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import differential_evolution, minimize
 
 APLUS_FILE = Path(__file__).resolve().parent / "data" / "AplusDesign.txt"  # columns: f (Hz), ASD (1/sqrt(Hz))
 
 
-def load_psd(name):
-    if name == "aplus":
+def load_psd(name, psd_file=None, fmin=15.0, fmax=600.0, delta_f=0.05):
+    """Frequencies and PSD on a uniform grid of step delta_f between fmin and fmax."""
+    if psd_file:
+        csv = str(psd_file).endswith(".csv")
+        data = np.loadtxt(psd_file, delimiter="," if csv else None, skiprows=1 if csv else 0)
+        f, psd = data[:, 0], data[:, 1]
+    elif name == "aplus":
         data = np.loadtxt(APLUS_FILE)
-        return data[:, 0], data[:, 1] ** 2
-    import pycbc.psd
+        f, psd = data[:, 0], data[:, 1] ** 2
+    else:
+        import pycbc.psd
 
-    fhigh, delta_f = 4096.0, 0.25
-    psd = pycbc.psd.aLIGOAdVO3LowT1800545(int(2 * fhigh / delta_f), delta_f, 25.0)
-    return np.asarray(psd.sample_frequencies), np.asarray(psd)
+        series = pycbc.psd.aLIGOAdVO3LowT1800545(int(fmax / delta_f) + 1, delta_f, 10.0)
+        f, psd = np.asarray(series.sample_frequencies), np.asarray(series)
+    good = psd > 0
+    grid = np.arange(max(fmin, f[good].min()), min(fmax, f[good].max()), delta_f)
+    return grid, np.exp(np.interp(grid, f[good], np.log(psd[good])))
 
 
-def figure_of_merit(freqs, psd, flow, fstar):
-    mask = (freqs >= flow) & (freqs <= fstar) & (psd > 0)
-    if mask.sum() < 2 or fstar <= flow:
-        return 0.0
-    integral = np.trapezoid(1.0 / (psd[mask] * freqs[mask] ** (7 / 3)), x=freqs[mask])
-    if not np.isfinite(integral) or integral <= 0:
-        return 0.0
-    return flow ** (2 / 3) / fstar ** (11 / 24) * np.sqrt(integral)
+def merit_grid(f, psd, step=0.1):
+    """F(f0, f*) on a grid of step ``step`` Hz: returns (frequencies, F[f0 index, f* index])."""
+    g = 1.0 / (f ** (7 / 3) * psd)
+    cumulative = np.concatenate([[0.0], np.cumsum(0.5 * (g[1:] + g[:-1]) * np.diff(f))])
+    idx = np.arange(0, len(f), max(1, int(round(step / (f[1] - f[0])))))
+    integral = cumulative[idx][None, :] - cumulative[idx][:, None]
+    fk = f[idx]
+    merit = fk[:, None] ** (2 / 3) * fk[None, :] ** (-11 / 24) * np.sqrt(np.clip(integral, 0, None))
+    return fk, merit
+
+
+def optimal_band(f, psd, step=0.1):
+    """(f0, f*, F_max) maximising F."""
+    fk, merit = merit_grid(f, psd, step)
+    i, j = np.unravel_index(np.argmax(merit), merit.shape)
+    return fk[i], fk[j], merit[i, j]
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--psd", choices=("o3", "aplus"), default="o3")
-    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--psd-file", type=Path, help="Two-column PSD file (f, PSD); overrides --psd.")
+    parser.add_argument("--fmin", type=float, default=15.0, help="Lowest frequency considered (Hz).")
+    parser.add_argument("--fmax", type=float, default=600.0, help="Highest frequency considered (Hz).")
+    parser.add_argument("--plot", type=Path, help="Save the map of F / F_max to this file.")
     args = parser.parse_args()
 
-    freqs, psd = load_psd(args.psd)
-    merit = lambda x: -figure_of_merit(freqs, psd, x[0], x[1])  # noqa: E731
+    f, psd = load_psd(args.psd, args.psd_file, args.fmin, args.fmax)
+    f0, f1, best = optimal_band(f, psd)
+    print(f"Optimal band: f0 = {f0:.1f} Hz, f* = {f1:.1f} Hz (F = {best:.3e} Hz^(1/24))")
 
-    flow_vals = np.linspace(10, 400, 300)
-    fstar_vals = np.linspace(30, 600, 300)
-    bounds = [(flow_vals[0], flow_vals[-1]), (fstar_vals[0], fstar_vals[-1])]
-    # Global search with differential evolution, refined with L-BFGS-B.
-    de = differential_evolution(merit, bounds=bounds, seed=0, tol=1e-8, maxiter=2000, popsize=35, polish=False)
-    res = minimize(merit, x0=de.x, bounds=bounds, method="L-BFGS-B",
-                   options={"maxiter": 5000, "ftol": 1e-12, "gtol": 1e-10})
-    fl_opt, fs_opt = res.x
-    f_opt = figure_of_merit(freqs, psd, fl_opt, fs_opt)
-    print(f"Optimum: f0 = {fl_opt:.1f} Hz, f* = {fs_opt:.1f} Hz, F = {f_opt:.4g}")
+    if args.plot:
+        import matplotlib
 
-    grid = np.array([[figure_of_merit(freqs, psd, fl, fs) for fl in flow_vals] for fs in fstar_vals])
-    grid[grid == 0] = np.nan
-    fig, ax = plt.subplots(figsize=(9, 6))
-    image = ax.pcolormesh(flow_vals, fstar_vals, grid / f_opt, cmap="viridis", shading="auto", vmin=0, vmax=1)
-    fig.colorbar(image, ax=ax, label=r"$F(f_0,\,f_*)\;/\;F_\mathrm{max}$")
-    ax.plot(fl_opt, fs_opt, "^", color="black", ms=7, label=f"optimum ({fl_opt:.1f}, {fs_opt:.1f}) Hz")
-    ax.set_xlabel(r"$f_0$ [Hz]")
-    ax.set_ylabel(r"$f_*$ [Hz]")
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.legend()
-    output = args.output or Path(f"optimal_freq_range_{args.psd}.png")
-    fig.savefig(output, dpi=300)
-    print(f"Plot saved to {output}")
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        fk, merit = merit_grid(f, psd, step=1.0)
+        z = merit.T / best
+        z[z <= 0] = np.nan
+        fig, ax = plt.subplots(figsize=(6.5, 5))
+        image = ax.pcolormesh(fk, fk, z, cmap="viridis", shading="auto", vmin=0, vmax=1, rasterized=True)
+        fig.colorbar(image, ax=ax, label=r"$F(f_0, f_*) / F_{\max}$")
+        ax.plot(f0, f1, "k^", ms=7, label=f"optimum ({f0:.1f}, {f1:.1f}) Hz")
+        ax.set(xscale="log", yscale="log", xlabel=r"$f_0$ [Hz]", ylabel=r"$f_*$ [Hz]")
+        ax.legend(loc="upper left")
+        fig.tight_layout()
+        fig.savefig(args.plot, dpi=300)
+        print(f"Plot saved to {args.plot}")
 
 
 if __name__ == "__main__":

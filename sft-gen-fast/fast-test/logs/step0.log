@@ -1,3 +1,0 @@
-/home/raul.rodriguez/.conda/envs/vit/lib/python3.10/site-packages/pycbc/waveform/plugin.py:99: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
-  import pkg_resources
-{'pack': 25, 'mchirp': 0.085, 'distance': 0.07498942093324558, 'strain_identical': True, 'strain_max_abs_diff': 0.0, 'map_identical_tsft1': True, 'track_identical_tsft1': True, 'map_identical_tsft88': True, 'track_identical_tsft88': True}

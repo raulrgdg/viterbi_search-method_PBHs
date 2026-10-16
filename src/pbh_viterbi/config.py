@@ -1,8 +1,10 @@
 """Search configuration shared by every stage of the pipeline.
 
-All values reproduce the benchmark search of arXiv:2607.18352 (O3b LIGO Hanford,
-Table I). Change them here rather than in individual scripts so that noise
-searches, injected searches and figures stay consistent.
+Values follow the benchmark search of arXiv:2607.18352 (O3b LIGO Hanford,
+Table I), with the v1.1 changes: in-memory SFTs, SFT durations chosen with the
+tracking limit of the remapped map, and one band for every search product.
+Change them here rather than in individual scripts so that noise searches,
+injected searches, the nsigma background and figures stay consistent.
 """
 
 import numpy as np
@@ -22,16 +24,36 @@ PACK_DURATION = FRAME_LENGTH * NUM_FRAMES
 # --------------------------------------------------------------------------
 # Time-frequency maps (Sec. II C, III A)
 # --------------------------------------------------------------------------
-# Optimal band for the O3 H1 PSD, maximising Eq. (13).
+# Optimal band for the O3 noise curve, maximising Eq. (13) (tools/optimal_freq_range.py).
+# Used by the noise search, the injected search and the nsigma background alike.
 FMIN = 61.1
 FMAX = 126.8
 FBAND = FMAX - FMIN
 
-# Thirteen coherence times covering 1e-4 <= Mc/Msun <= 1e-1 with < 1% SNR loss.
-TSFT_VALUES = (2, 3, 4, 5, 7, 10, 13, 18, 25, 35, 47, 63, 88)
+# SFT durations (s). Viterbi can follow an inspiral in the remapped map only if
+# Tsft <= T_lim = 17.7 s (Mc / 1e-2 Msun)^(-5/6), and below T_lim
+# nsigma / max nsigma ~ sqrt(Tsft / T_lim) (docs/tsft_optimum.md). The lists are
+# the smallest sets, in multiples of 1/8 s, that keep nsigma / max nsigma above
+# 0.95 or 0.90 for every chirp mass in [2e-4, 0.1] Msun
+# (tools/opt_tsft_remapped/compare_tsft_lists.py). "paper" is the list of
+# arXiv:2607.18352, chosen with Eq. (14).
+TSFT_LISTS = {
+    "95": (2.625, 2.875, 3.125, 3.5, 3.875, 4.25, 4.75, 5.25, 5.875, 6.625, 7.375, 8.25, 9.25, 10.375, 11.625,
+           13.125, 14.75, 16.625, 18.75, 21.0, 23.625, 26.75, 29.875, 33.75, 38.125, 42.875, 48.125, 54.25,
+           61.375, 69.25, 78.25, 88.125, 99.5, 112.375, 126.875, 142.5, 160.0, 180.75, 204.125, 230.5, 259.625,
+           293.25, 331.125, 373.875, 422.25),
+    "90": (2.625, 3.0, 3.75, 4.5, 5.625, 6.875, 8.5, 10.625, 13.375, 16.75, 20.75, 26.0, 32.375, 40.875, 50.75,
+           63.5, 79.5, 99.5, 124.5, 154.5, 193.875, 238.125, 298.75, 377.0),
+    "paper": (2, 3, 4, 5, 7, 10, 13, 18, 25, 35, 47, 63, 88),
+}
+DEFAULT_TSFT_LIST = "95"
+TSFT_VALUES = TSFT_LISTS[DEFAULT_TSFT_LIST]
 
+# SFT generation: "fast" (in memory, pbh_viterbi.sft.fast) or "makesfts"
+# (lalpulsar_MakeSFTs, as in the paper; integer Tsft only, ~100x slower).
+SFT_METHOD = "fast"
 SFT_WINDOW = "rectangular"
-MAKE_SFT_THREADS = 256  # parallel lalpulsar_MakeSFTs workers per Tsft
+MAKE_SFT_THREADS = 256  # parallel lalpulsar_MakeSFTs workers per Tsft (makesfts method only)
 
 # --------------------------------------------------------------------------
 # Viterbi tracking (Sec. II B)

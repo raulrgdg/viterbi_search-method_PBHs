@@ -34,7 +34,7 @@ shipped; the regression values in `tests/test_search.py` come from them):
 | `waveforms/my_taylor_t3.py`, `injected_search/inject_signal.py` | `pbh_viterbi/waveform/` |
 | `download/download_o3.py`, `utils/framecache.py` | `pbh_viterbi/o3/` |
 | `search_candidates.py` (CSV shards) | `pbh_viterbi/results.py`, `pbh_viterbi/jobs.py` |
-| `campaigns/injection_assignment.py`, `campaigns/injection_600/` | `pbh_viterbi/campaign.py`, `workflows/campaign_600/` |
+| `campaigns/injection_assignment.py`, `campaigns/injection_600/` | `pbh_viterbi/campaign.py`, `workflows/campaign/` (v1.0: `workflows/campaign_600/`) |
 | `scripts/*.sh`, `*_slurm.sh`, `workflows/` | `scripts/` (one wrapper per entry point + `env.sh`), `workflows/condor|slurm` |
 | `scripts/merge_csv_folder.py` | `analysis/merge_results.py` (+ `--drop-duplicates`) |
 | `analysis/mean_metrics_with_std.py` | `analysis/noise_background_stats.py` |

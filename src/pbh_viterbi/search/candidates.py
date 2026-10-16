@@ -29,7 +29,7 @@ from pbh_viterbi.config import (
     TOP_N_BLOCKS,
 )
 from pbh_viterbi.search.fitting import expand_block, fit_candidate_blocks, fit_significant_blocks
-from pbh_viterbi.search.power import as_track, screen_windows, select_best_tsft
+from pbh_viterbi.search.power import as_track, screen_windows, select_best_tsft, tsft_key
 
 log = logging.getLogger(__name__)
 
@@ -102,15 +102,15 @@ def search_candidate(tsft_results, noise_means, noise_stds):
     """Rank one data chunk given its per-Tsft Viterbi products.
 
     ``tsft_results`` is a list of dicts as returned by
-    ``pbh_viterbi.sft.maps.process_tsft``. Returns a dict with ``candidate``,
+    ``pbh_viterbi.sft.maps.track_product``. Returns a dict with ``candidate``,
     ``nmse``, ``nsigma``, ``mass`` (chirp-mass estimate, Msun), ``tsft`` and
     ``status``; ``nmse``/``mass`` are None when the isolation fails.
     """
     opt_tsft, opt_nsigma, _ = select_best_tsft(tsft_results, noise_means, noise_stds)
-    selected = next((r for r in tsft_results if int(r["tsft"]) == int(opt_tsft)), None)
+    selected = next((r for r in tsft_results if tsft_key(r["tsft"]) == opt_tsft), None)
     if selected is None:
         raise ValueError(f"Optimal tsft {opt_tsft} not found in tsft_results")
-    log.info("Selected tsft=%d s with nsigma=%.4f", opt_tsft, opt_nsigma)
+    log.info("Selected tsft=%g s with nsigma=%.4f", opt_tsft, opt_nsigma)
 
     result = {"candidate": False, "nmse": None, "nsigma": opt_nsigma, "mass": None, "tsft": opt_tsft}
     status, _windows, _optimal, expanded = isolate_candidate(

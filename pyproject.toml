@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pbh-viterbi"
-version = "1.0.0"
+version = "1.1.0"
 description = "Viterbi search pipeline for planetary-mass primordial black hole binaries in LIGO data (arXiv:2607.18352)."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -1,9 +1,39 @@
 # Computational cost
 
-Wall-clock time, hardware, memory and scaling of the search, measured on the
-injection campaign of the paper and with dedicated benchmarks.
+Wall-clock time, hardware, memory and scaling of the search.
 
-## Summary
+## v1.1: in-memory SFTs
+
+From v1.1 the SFTs are built in memory (`docs/fast_sft.md`). Measured on an
+AMD EPYC 9475F node (shared, ±30%), one process per job:
+
+| | Time | Memory |
+|---|---|---|
+| Fixed part per chunk (reading 8 frames, injecting a signal) | ~8 s | |
+| Per Tsft and chunk (SFTs, remapping, Viterbi) | ~1.5 s | |
+| Noise search, 13 paper Tsft | 31 s per chunk | 1.6 GB |
+| Noise search, 45-Tsft list (`95`) | 64 s per chunk | 2.2 GB |
+| Injection, 45-Tsft list (`95`) | 63–75 s | 2.3 GB |
+| Injection, 24-Tsft list (`90`) | ~44 s | |
+| nσ background, 108 packs × 79 Tsft (the three lists), 8 processes | 24 min | |
+
+The cost grows linearly with the number of Tsft. It is nearly independent of
+their values: the per-segment high-pass filter dominates, and its cost scales
+with the number of samples, not of segments. No disk space is needed.
+
+**Paper campaign** (18000 injections, plus the noise search and nσ background
+on 108 chunks):
+
+| Tsft list | Core-hours | One node, 8 processes | One node, 24 processes |
+|---|---|---|---|
+| `95` (45 Tsft) | ~380 | ~47 h | ~16 h |
+| `90` (24 Tsft) | ~220 | ~28 h | ~9 h |
+| `paper` (13 Tsft) | ~140 | ~17 h | ~6 h |
+
+The paper used ~2.1×10⁵ allocated core-hours with MakeSFTs. The rest of this
+document describes that campaign (v1.0, MakeSFTs).
+
+## Summary (v1.0, MakeSFTs)
 
 For one data chunk (T_obs = 32768 s ≈ 9.1 h, 13 SFT lengths from 2 to 88 s):
 

@@ -57,15 +57,19 @@ def frame_snr2(h_detector, psd_freqs, psd_values, flow=FMIN, fhigh=FMAX):
 
 
 def frame_polarizations(m1, m2, distance, t_start, num_frames=NUM_FRAMES, frame_length=FRAME_LENGTH,
-                        sample_rate=SAMPLE_RATE):
-    """(hp, hc) of an injection starting at ``t_start``, one pair per frame."""
+                        sample_rate=SAMPLE_RATE, inclination=INCLINATION, t_to_merger=None):
+    """(hp, hc) of an injection starting at ``t_start``, one pair per frame.
+
+    ``t_to_merger`` defaults to the value of config.py for the chirp mass.
+    """
     from pycbc.conversions import mchirp_from_mass1_mass2
 
     from pbh_viterbi.waveform.taylor_t3 import TaylorT3
 
-    mchirp = mchirp_from_mass1_mass2(m1, m2)
-    waveform = TaylorT3(m1=m1, m2=m2, distance=distance, inclination=INCLINATION, sampling_rate=sample_rate,
-                        coal_time=int(t_start + t_to_merger_for_mchirp(mchirp)))
+    if t_to_merger is None:
+        t_to_merger = t_to_merger_for_mchirp(mchirp_from_mass1_mass2(m1, m2))
+    waveform = TaylorT3(m1=m1, m2=m2, distance=distance, inclination=inclination, sampling_rate=sample_rate,
+                        coal_time=int(t_start + t_to_merger))
     return [
         waveform.tdstrain(t_start + i * frame_length, t_start + (i + 1) * frame_length, PyCBC_TimeSeries=True)
         for i in range(num_frames)

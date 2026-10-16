@@ -57,6 +57,29 @@ def sample_sky(seed, pack, signal_index):
     }
 
 
+def inject_in_memory(m1, m2, distance, t_to_merger, ra, dec, pol, t_start, raw_segments, inc=INCLINATION,
+                     ifo=IFO, frame_length=FRAME_LENGTH):
+    """Add a TaylorT3 inspiral to each raw frame in memory and return the injected segments.
+
+    Same waveform and projection as ``inject_signal``, without writing frames;
+    the strain is bit-identical to writing the GWF files and reading them back.
+    The binary coalesces ``t_to_merger`` seconds after ``t_start``.
+    Returns ``(coal_time, segments)``.
+    """
+    from pycbc.detector import Detector
+
+    coal_time = int(t_start + t_to_merger)
+    waveform = TaylorT3(m1=m1, m2=m2, distance=distance, inclination=inc,
+                        sampling_rate=1 / raw_segments[0].delta_t, coal_time=coal_time)
+    detector = Detector(ifo)
+    injected = []
+    for i, segment in enumerate(raw_segments):
+        t0 = t_start + i * frame_length
+        hp, hc = waveform.tdstrain(t0, t0 + frame_length, PyCBC_TimeSeries=True)
+        injected.append(segment.inject(detector.project_wave(hp, hc, ra, dec, pol, method="lal")))
+    return coal_time, injected
+
+
 def inject_signal(m1, m2, distance, t_to_merger, ra, dec, pol, t_start, raw_segments, output_root,
                   inc=INCLINATION, ifo=IFO, channel=CHANNEL, frame_length=FRAME_LENGTH):
     """Add a TaylorT3 inspiral to each raw frame and write the result as GWF files.

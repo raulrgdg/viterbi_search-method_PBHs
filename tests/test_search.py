@@ -1,32 +1,35 @@
 """Regression tests of the candidate search.
 
 Reference values were produced with the code used for the paper results
-(identical output verified against it); any change here changes the science.
+(identical output verified against it) and updated in v1.1, where the
+frequency grid of the remapped maps starts at the first SFT bin instead of the
+nominal FMIN (same statuses, chirp masses within 0.1%). Any change here
+changes the science.
 """
 
 import numpy as np
 import pytest
 from synthetic import synthetic_products
 
-from pbh_viterbi.paths import DEFAULT_NOISE_BACKGROUND
+from pbh_viterbi.paths import PAPER_NOISE_BACKGROUND
 from pbh_viterbi.search.candidates import STATUS_BELOW_THRESHOLD, STATUS_CANDIDATE, search_candidate
 from pbh_viterbi.search.fitting import fit_slope_windows, mass_grid, slope_of_mass
 from pbh_viterbi.search.power import load_noise_background
 
 CASES = [
-    (dict(amplitude=20.0), STATUS_CANDIDATE, 2.9043097502328036e-07, 27.193242043903346, 0.009998848716163801),
-    (dict(mchirp=3e-3, amplitude=1.0, seed=1), STATUS_CANDIDATE, 0.00010530084622096395, 0.4879053245381729,
-     0.0029958759471652523),
-    (dict(duration_frac=0.0, seed=2), STATUS_BELOW_THRESHOLD, 2.1646712834880844, -0.864807374149339,
+    (dict(amplitude=20.0), STATUS_CANDIDATE, 5.585267255785663e-06, 27.346808529379746, 0.010008062699408052),
+    (dict(mchirp=3e-3, amplitude=1.0, seed=1), STATUS_CANDIDATE, 0.00011540057392794976, 0.4043111400612557,
+     0.002994496543979514),
+    (dict(duration_frac=0.0, seed=2), STATUS_BELOW_THRESHOLD, 2.164671498239518, -0.864807374149339,
      0.0035361235156470532),
-    (dict(mchirp=5e-2, duration_frac=0.05, amplitude=40, seed=3, tsft=88), STATUS_CANDIDATE, 2.1942729771918586e-07,
-     4.782863753587656, 0.05000172062612015),
+    (dict(mchirp=5e-2, duration_frac=0.05, amplitude=40, seed=3, tsft=88), STATUS_CANDIDATE, 2.2539760381352335e-07,
+     4.798959220368315, 0.05000172062612015),
 ]
 
 
 @pytest.fixture(scope="module")
 def background():
-    return load_noise_background(DEFAULT_NOISE_BACKGROUND)
+    return load_noise_background(PAPER_NOISE_BACKGROUND)
 
 
 @pytest.mark.parametrize("kwargs,status,nmse,nsigma,mass", CASES)

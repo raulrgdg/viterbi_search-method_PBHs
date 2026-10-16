@@ -1,7 +1,13 @@
-"""GPS windows of the 108 O3b LIGO Hanford packs analysed in the paper.
+"""GPS windows of the O3b LIGO Hanford packs: 1-108 analysed in the paper, 109-141 added in v1.1.
 
 Each pack is a gap-free stretch of NUM_FRAMES * FRAME_LENGTH = 32768 s of
 H1:GWOSC-4KHZ_R1_STRAIN data (O3b, GWOSC). Together they amount to ~983 h.
+
+To analyse more chunks (e.g. to enlarge the noise background), append their
+windows as new pack ids (109, 110, ...); tools/find_gwosc_chunks.py lists the
+gap-free 32768 s chunks of a GWOSC run. Then download them and run
+`PACKS="109-120" bash scripts/run_local.sh background 8`, which adds them to
+calibration/noise_track_power.csv and updates the nsigma background files.
 """
 
 from pbh_viterbi.config import PACK_DURATION
@@ -116,9 +122,45 @@ PACK_WINDOWS = {
     106: (1267511296, 1267544064),
     107: (1267642368, 1267675136),
     108: (1267675136, 1267707904),
+    # Packs added after the paper (v1.1): the other 33 gap-free 32768 s chunks of
+    # O3b H1 listed by GWOSC (tools/find_gwosc_chunks.py), not overlapping packs 1-108.
+    109: (1257074688, 1257107456),
+    110: (1258070016, 1258102784),
+    111: (1258102784, 1258135552),
+    112: (1258663936, 1258696704),
+    113: (1263882240, 1263915008),
+    114: (1263976448, 1264009216),
+    115: (1264009216, 1264041984),
+    116: (1264738304, 1264771072),
+    117: (1264812032, 1264844800),
+    118: (1264988160, 1265020928),
+    119: (1265176576, 1265209344),
+    120: (1265246208, 1265278976),
+    121: (1265278976, 1265311744),
+    122: (1265418240, 1265451008),
+    123: (1265528832, 1265561600),
+    124: (1267847168, 1267879936),
+    125: (1267920896, 1267953664),
+    126: (1268006912, 1268039680),
+    127: (1268080640, 1268113408),
+    128: (1268224000, 1268256768),
+    129: (1268269056, 1268301824),
+    130: (1268350976, 1268383744),
+    131: (1268383744, 1268416512),
+    132: (1268617216, 1268649984),
+    133: (1268686848, 1268719616),
+    134: (1268719616, 1268752384),
+    135: (1268842496, 1268875264),
+    136: (1268875264, 1268908032),
+    137: (1268985856, 1269018624),
+    138: (1269039104, 1269071872),
+    139: (1269157888, 1269190656),
+    140: (1269231616, 1269264384),
+    141: (1269309440, 1269342208),
 }
 
 ALL_PACKS = tuple(sorted(PACK_WINDOWS))
+PAPER_PACKS = tuple(range(1, 109))  # the packs of arXiv:2607.18352
 
 
 def pack_window(pack):

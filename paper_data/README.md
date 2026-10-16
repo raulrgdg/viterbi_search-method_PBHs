@@ -1,5 +1,10 @@
 # Data products behind the paper results
 
+These files were produced with pipeline v1.0 (`lalpulsar_MakeSFTs`, the 13
+paper Tsft). Pipeline v1.1 fixes the caveats listed at the end (one band for
+every product, maps aligned with the SFT bins, stored sky positions), so a v1.1
+search reproduces these results statistically, not row by row.
+
 Reference outputs of the code used for arXiv:2607.18352 (O3b LIGO Hanford,
 H1:GWOSC-4KHZ_R1_STRAIN resampled to 512 Hz). They let you reproduce the
 threshold and Figs. 3 and 5-8 without re-running the searches, and they are

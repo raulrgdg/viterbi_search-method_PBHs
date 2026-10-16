@@ -11,6 +11,8 @@ on clusters where data live on a different filesystem than the code:
 import os
 from pathlib import Path
 
+from pbh_viterbi.config import DEFAULT_TSFT_LIST
+
 PROJECT_ROOT = Path(os.environ.get("PBH_VITERBI_ROOT", Path(__file__).resolve().parents[2]))
 
 DATA_DIR = PROJECT_ROOT / "data"
@@ -23,8 +25,19 @@ SHARDS_DIR = RESULTS_DIR / "tmp" / "shards"
 PLOTS_DIR = RESULTS_DIR / "plots"
 LOGS_DIR = RESULTS_DIR / "logs"
 
-# nsigma background: mean and std of the Viterbi track power in noise, per Tsft.
-DEFAULT_NOISE_BACKGROUND = PAPER_DATA_DIR / "calibration" / "noise_power_background.csv"
+# nsigma background: mean and std of the Viterbi track power in noise, per Tsft,
+# one file per Tsft list (computed with the v1.1 code, band FMIN-FMAX).
+CALIBRATION_DIR = PROJECT_ROOT / "calibration"
+# Background of the paper (13 Tsft, 61.1-127.2 Hz, v1.0 maps); kept for the regression tests.
+PAPER_NOISE_BACKGROUND = PAPER_DATA_DIR / "calibration" / "noise_power_background.csv"
+
+
+def noise_background_path(tsft_list):
+    """Default nsigma background file of a Tsft list ("95", "90" or "paper")."""
+    return CALIBRATION_DIR / f"noise_background_tsft{tsft_list}.csv"
+
+
+DEFAULT_NOISE_BACKGROUND = noise_background_path(DEFAULT_TSFT_LIST)
 
 MAKE_SFTS_SCRIPT = Path(__file__).resolve().parent / "sft" / "make_sfts.sh"
 
