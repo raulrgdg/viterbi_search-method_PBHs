@@ -88,6 +88,45 @@ Default injection packs: 1 2 3 (signals 0–199), 13 14 15 (200–399), 25 26 27
   share of noise packs selecting Tsft ≥ 150 s, per rule;
 * `fig_noise_tail`: noise nσ tail per Tsft.
 
-## Results
+## Results (run of 2026-10-19, commit e8fe2e3)
 
-Pending.
+141 noise packs and 1800 injections (packs 1–3, 13–15, 25–27), 79 Tsft.
+Efficiency over all injections; slices by signal index.
+
+| Rule | 1D, FAR 3% | paper, FAR 3% | paper, FAR 3%, heavy | paper, FAR 1% |
+|---|---|---|---|---|
+| A  max nσ, 13 paper Tsft | 0.432 | 0.509 | 0.755 | 0.501 |
+| B  max nσ, 45 Tsft (v1.1) | 0.436 | 0.488 | 0.672 | 0.483 |
+| C  min p-value | 0.428 | 0.487 | 0.665 | 0.470 |
+| C' min p-value + tail | 0.433 | 0.489 | 0.672 | 0.482 |
+| D  max nσ among isolated | 0.436 | 0.495 | 0.695 | 0.481 |
+| **D' top-5 nσ, min NMSE** | 0.427 | **0.516** | **0.758** | **0.514** |
+| E  D + T_lim consistency | 0.436 | 0.495 | 0.695 | 0.481 |
+
+Paired comparison (same injections, paper criterion, FAR 3%):
+* D' vs B: +63 / −13 injections overall, **+52 / −0 in the heavy slice**
+  (McNemar p = 4×10⁻¹⁶); better in each of packs 25, 26, 27.
+* D' vs A: +49 / −37 overall (p = 0.24), +29 / −27 heavy (p = 0.89): D'
+  recovers the heavy-mass efficiency of the 13-Tsft list and keeps the gain of
+  the 45-Tsft list at the lightest masses (2×10⁻⁴ M☉: 0.07 vs 0.03).
+
+Findings:
+1. **With nσ alone (1D) the rule does not matter** at FAR ≤ 3%: only signals
+   with nσ ≳ 2.5–3 pass, and those win the selection with any rule.
+2. The loss of v1.1 appears only with the paper (NMSE, nσ) threshold, which
+   accepts weak heavy signals thanks to a near-perfect chirp fit (small NMSE).
+   With max nσ, a long-Tsft noise track takes the selection and the fit is lost
+   (`fig_selected_tsft`: undetected heavy injections at Tsft 250–420 s).
+3. **p-values (C, C') do not help**: the noise tail does not grow with Tsft
+   (`fig_noise_tail`), so min p ≈ max nσ; with 141 packs p cannot go below 1/141.
+4. **Mass consistency (E) does not help**: the long-Tsft noise tracks that
+   isolate are fitted as light masses (long T_lim), so they pass the check.
+5. **D' (choose by NMSE among the 5 largest nσ with an isolated candidate) is the
+   best rule** and the only one that fixes the heavy-mass loss.
+
+Caveats:
+* The paper threshold is fitted and evaluated on the same injections and noise
+  packs (optimistic, equally for every rule); with 141 noise packs FAR 1% is
+  1 pack, and the paper threshold barely changes between 1% and 3%.
+* The gain of D' lives in the low-nσ, small-NMSE region, where 141 noise packs
+  can not measure the FAR below 1/141 (see the threshold issues kept aside).
