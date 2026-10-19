@@ -48,6 +48,7 @@ def test_paper_campaign_packs():
     packs = campaign_packs("paper")
     assert len(packs) == 90 and len(campaign_packs("all")) == 108
     assert sorted({assignment_for_pack(p).cluster for p in packs}) == ["HPC1", "HPC2", "HPC3"]
+    assert all(sum(assignment_for_pack(p).cluster == c for p in packs) == 30 for c in ("HPC1", "HPC2", "HPC3"))
 
 
 def test_campaign_partition():

@@ -24,8 +24,9 @@
   own pack.
 * **Single-machine runner** `scripts/run_local.sh` (download, background, noise
   search, injection campaign; resumable). The cluster jobs now request one core.
-* **Campaign** defaults to the 90 packs of the paper (`pbh_viterbi.campaign`)
-  and needs no chaining across packs or clusters.
+* **Campaign** defaults to 90 packs, 30 per signal slice (`pbh_viterbi.campaign`),
+  and needs no chaining across packs or clusters. The paper meant 30 per slice
+  but ran 32, 28 and 30; v1.1 moves packs 80-81 out and 89-90 in (88 shared).
 * **33 more O3b chunks** (packs 109–141): the other gap-free 32768 s chunks of
   O3b H1 on GWOSC (`tools/find_gwosc_chunks.py`), for the noise background and
   the noise search (141 chunks, ~1283 h). The nσ background keeps a per-pack

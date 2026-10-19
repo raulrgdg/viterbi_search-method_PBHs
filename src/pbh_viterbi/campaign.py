@@ -11,10 +11,12 @@ run the whole campaign.
     HPC2  packs 13-24, 49-60, 85-96   signals [200, 400)
     HPC3  packs 25-36, 61-72, 97-108  signals [400, 600)
 
-The paper campaign used 90 of the packs (32, 28 and 30 for the three slices,
-i.e. every signal in ~30 noise realisations): PAPER_CAMPAIGN_PACKS, the default
-campaign of v1.1, so that a re-run is directly comparable. ``campaign_packs("all")`` uses the 108
-packs (36 realisations per signal).
+The paper campaign used 90 of the packs, meant as 30 per slice but run by
+mistake with 32, 28 and 30. The default campaign of v1.1 (PAPER_CAMPAIGN_PACKS)
+keeps 30 packs per slice, i.e. every signal in exactly 30 noise realisations:
+the paper packs with 80 and 81 moved out of HPC1 and 89 and 90 added to HPC2
+(88 of the 90 packs are shared with the paper, so a re-run is directly
+comparable). ``campaign_packs("all")`` uses the 108 packs (36 realisations per signal).
 """
 
 from dataclasses import dataclass
@@ -30,10 +32,11 @@ CLUSTERS = (
     {"cluster": "HPC3", "scheduler": "slurm", "signal_start": 400, "signal_end": 600},
 )
 
-# Packs of the final paper campaign (paper_data/search_results/injected_search_O3b_H1_90packs.csv).
+# Packs of the paper campaign, 30 per slice. The paper
+# (paper_data/search_results/injected_search_O3b_H1_90packs.csv) used 73-81 in HPC1 and 85-88 in HPC2.
 PAPER_CAMPAIGN_PACKS = (
-    tuple(range(1, 12)) + tuple(range(37, 49)) + tuple(range(73, 82))  # HPC1: 32 packs
-    + tuple(range(13, 25)) + tuple(range(49, 61)) + tuple(range(85, 89))  # HPC2: 28 packs
+    tuple(range(1, 12)) + tuple(range(37, 49)) + tuple(range(73, 80))  # HPC1: 30 packs
+    + tuple(range(13, 25)) + tuple(range(49, 61)) + tuple(range(85, 91))  # HPC2: 30 packs
     + tuple(range(25, 37)) + tuple(range(61, 67)) + tuple(range(68, 73)) + tuple(range(97, 104))  # HPC3: 30 packs
 )
 

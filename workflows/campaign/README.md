@@ -10,9 +10,11 @@ population (`src/pbh_viterbi/campaign.py`):
 | HPC2                  | 13-24, 49-60, 85-96    | [200, 400) |
 | HPC3                  | 25-36, 61-72, 97-108   | [400, 600) |
 
-The default campaign (`CAMPAIGN=paper`) uses the same 90 packs as the paper
-(every signal in ~30 noise realisations, 18000 injections), so that a re-run is
-directly comparable; `CAMPAIGN=all` uses the 108 packs. In the paper the three
+The default campaign (`CAMPAIGN=paper`) uses 90 packs, 30 per slice (every
+signal in 30 noise realisations, 18000 injections). The paper meant the same but
+ran 32, 28 and 30 packs per slice; v1.1 drops packs 80-81 from HPC1 and adds
+89-90 to HPC2, so 88 packs are shared with the paper and a re-run is directly
+comparable; `CAMPAIGN=all` uses the 108 packs. In the paper the three
 slices ran on three clusters with `lalpulsar_MakeSFTs`; with in-memory SFTs a
 single cluster or machine runs the whole campaign (~380 core-hours with the
 95% Tsft list, ~220 with the 90% list; see `docs/computational_cost.md`).
