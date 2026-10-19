@@ -1,13 +1,26 @@
 # Download the 108 O3b packs from GWOSC, split across $(n_jobs) jobs.
 # Submit from the repository root:
 #   condor_submit workflows/condor/download_o3.sub
-# Override on the command line, e.g.:  condor_submit n_jobs=10 workflows/condor/download_o3.sub
+# Defaults below can be overridden on the command line, e.g.:  condor_submit n_jobs=10 workflows/condor/download_o3.sub
 
-n_jobs     = 5
-packs      = all
+if !defined n_jobs
+    n_jobs = 5
+endif
+if !defined packs
+    packs = all
+endif
+
+# Conda environment activated by scripts/env.sh (override: conda_env=<name>).
+if !defined conda_env
+    conda_env = pbh-viterbi
+endif
 
 executable = /bin/bash
 arguments  = scripts/download_o3.sh $(n_jobs) $(Process) $(packs)
+environment = "PBH_CONDA_ENV=$(conda_env)"
+
+# Jobs read the repository and write results/ in place: shared filesystem only.
+should_transfer_files = NO
 
 log    = results/logs/download_o3.$(ClusterId).log
 output = results/logs/download_o3.$(ClusterId).$(Process).out

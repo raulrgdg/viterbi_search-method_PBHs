@@ -137,6 +137,11 @@ def merge_shards_if_ready(name, n_jobs, fieldnames=FIELDNAMES):
         log.info("Merge of %s already in progress.", name)
         return
 
+    if not all(path.exists() for path in shards + markers):
+        log.info("Merge of %s already done by another job.", name)
+        lock.unlink(missing_ok=True)
+        return
+
     output = ensure_dir(SEARCH_RESULTS_DIR) / name
     tmp_output = output.with_suffix(output.suffix + ".tmp")
     try:

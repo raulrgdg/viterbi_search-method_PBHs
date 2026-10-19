@@ -27,6 +27,13 @@ bash workflows/campaign/submit_condor.sh
 bash workflows/campaign/submit_slurm.sh
 ```
 
+The jobs activate the conda environment `pbh-viterbi`; use another one with
+`PBH_CONDA_ENV=<name> bash workflows/campaign/submit_condor.sh`. Re-running the
+command skips the complete packs. When every job has finished, run
+`bash workflows/campaign/finalize.sh`: it merges any pack whose shards were left
+unmerged (two jobs finishing together on a shared filesystem can miss each
+other) and lists the incomplete packs.
+
 Each pack produces `results/search/search_results_injected_pack-<pack>.csv`
 (with the sky location, polarisation, inclination and time to merger of every
 injection). Merge them with
