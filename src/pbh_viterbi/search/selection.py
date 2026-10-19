@@ -45,6 +45,7 @@ CHUNK_KEYS = ["injected", "pack", "signal_id"]
 TAIL_QUANTILE = 0.90
 TOP_K = 5
 T_LIM_MARGIN = 1.5
+P_FLOOR = 1e-300
 
 
 def _tsft_set(name):
@@ -92,7 +93,8 @@ def empirical_pvalues(df, noise, tail_quantile=None):
                 tail = np.mean(b_loo > u) * np.exp(-(x[above] - u) / excess.mean())
                 p_sub[above] = np.minimum(p_sub[above], tail)
         p[df.index.get_indexer(rows)] = p_sub
-    return p
+    # The tail can underflow to 0 for very loud signals (nsigma >> 10): keep p > 0 so -log10(p) stays finite.
+    return np.maximum(p, P_FLOOR)
 
 
 def _select(df, tsft_set, score, eligible=None):

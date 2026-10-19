@@ -67,6 +67,13 @@ def test_tail_pvalue_below_empirical_floor(tables):
     assert np.all(p_emp == pytest.approx(1 / 40)) and np.all(p_tail < p_emp)
 
 
+def test_tail_rule_keeps_very_loud_signal(tables):
+    noise, _signal = tables
+    loud = prepare(pd.DataFrame(chunk(25, 1, 1, [(SHORT, 5000.0, "ok", 1e-9, 0.1), (LONG, 3.0, "ok", 1.0, 1e-4)])))
+    sel = apply_rule("C_min_p_tail_95", loud, noise)
+    assert sel.loc[0, "tsft"] == SHORT and np.isfinite(sel.loc[0, "stat"])
+
+
 def test_every_rule_returns_one_row_per_chunk(tables):
     noise, signal = tables
     both = pd.concat([noise, signal], ignore_index=True)
