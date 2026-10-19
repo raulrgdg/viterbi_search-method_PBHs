@@ -22,7 +22,7 @@ single cluster or machine runs the whole campaign (~380 core-hours with the
 ```bash
 # one machine, 8 processes (resumable: complete packs are skipped)
 bash scripts/run_local.sh injected 8
-# HTCondor / Slurm: 10 jobs per pack, all packs submitted at once
+# HTCondor / Slurm: 20 jobs per pack, all packs submitted at once
 bash workflows/campaign/submit_condor.sh
 bash workflows/campaign/submit_slurm.sh
 ```

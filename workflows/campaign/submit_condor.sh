@@ -1,6 +1,6 @@
 #!/bin/bash
 # Submit the injection campaign on an HTCondor cluster: one Condor cluster of
-# 10 jobs per pack, all packs at once (jobs are independent).
+# 20 jobs per pack, all packs at once (jobs are independent).
 #
 # Run from anywhere:
 #   bash workflows/campaign/submit_condor.sh                 # the 90 packs of the paper

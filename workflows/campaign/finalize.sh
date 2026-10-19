@@ -4,12 +4,12 @@
 # Each job merges its pack when it is the last one to finish, but on a shared
 # filesystem two jobs can miss each other's .done marker and leave the pack
 # unmerged. Run this once the campaign has finished (it is harmless to repeat):
-#   bash workflows/campaign/finalize.sh            # N_JOBS=10 jobs per pack
+#   bash workflows/campaign/finalize.sh            # N_JOBS=20 jobs per pack
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/env.sh"  # activates the environment and cd to the repo root
 
 PACKS="${PACKS:-$(python -m pbh_viterbi.campaign "${CAMPAIGN:-paper}")}"
-python - "${N_JOBS:-10}" ${PACKS} <<'PY'
+python - "${N_JOBS:-20}" ${PACKS} <<'PY'
 import logging, sys
 from pbh_viterbi.paths import SEARCH_RESULTS_DIR
 from pbh_viterbi.results import csv_name, merge_shards_if_ready, shard_path

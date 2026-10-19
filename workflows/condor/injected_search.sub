@@ -1,12 +1,12 @@
 # Injected search on one O3b pack: the pack's 200-signal campaign slice,
-# split into $(n_jobs) jobs (20 signals, ~25 min each with the default Tsft list).
+# split into $(n_jobs) jobs (10 signals, ~15-40 min each with the default Tsft list).
 # Submit from the repository root:
 #   condor_submit pack=1 workflows/condor/injected_search.sub
 # For the whole campaign use workflows/campaign/submit_condor.sh.
 # Output: results/search/search_results_injected_pack-<pack>.csv
 
 if !defined n_jobs
-    n_jobs = 10
+    n_jobs = 20
 endif
 if !defined pack
     pack = 1
@@ -45,6 +45,8 @@ error  = $(results_dir)/logs/injected_search_pack-$(pack).$(ClusterId).$(Process
 
 # In-memory SFTs: one core. For sft_method=makesfts use n_jobs=200, 8 cores, 12 GB.
 request_cpus   = 1
+# Skip the 2008 AMD Opteron nodes (no AVX, several times slower per injection).
+requirements   = (TARGET.cpuinfo_model_name =?= undefined) || !regexp("Opteron", TARGET.cpuinfo_model_name)
 request_memory = 4GB
 request_disk   = 1GB
 
