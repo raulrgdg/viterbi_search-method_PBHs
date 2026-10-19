@@ -16,6 +16,7 @@ paper classification applies the FAR = 3% polynomial threshold afterwards
 """
 
 import logging
+import time
 
 import numpy as np
 
@@ -29,7 +30,7 @@ from pbh_viterbi.config import (
     TOP_N_BLOCKS,
 )
 from pbh_viterbi.search.fitting import expand_block, fit_candidate_blocks, fit_significant_blocks
-from pbh_viterbi.search.power import as_track, screen_windows, select_best_tsft, tsft_key
+from pbh_viterbi.search.power import as_track, screen_windows, select_best_tsft, total_track_power, tsft_key
 
 log = logging.getLogger(__name__)
 
@@ -130,3 +131,51 @@ def search_candidate(tsft_results, noise_means, noise_stds):
     status = STATUS_CANDIDATE if passed else STATUS_BELOW_THRESHOLD
     log.info("nsigma=%.4f nmse=%.4e mass=%.4e -> %s", opt_nsigma, nmse, mass, status)
     return {**result, "candidate": bool(passed), "nmse": nmse, "mass": mass, "status": status}
+
+
+# --------------------------------------------------------------------------
+# [UNDER TEST] Per-Tsft products for the Tsft-selection study
+# (studies/tsft_selection). Not used by the default search: search_candidate
+# above still selects the Tsft of largest nsigma.
+# --------------------------------------------------------------------------
+
+def per_tsft_candidates(tsft_results, noise_means, noise_stds):
+    """Isolate a candidate on the track of every Tsft, not only the selected one.
+
+    Returns one dict per Tsft with the raw track power (so nsigma can be
+    renormalised offline, e.g. leaving the pack out of the background), its
+    nsigma, the isolation outcome and, when the isolation succeeds, the NMSE,
+    chirp mass and time span (s from the start of the chunk) of the expanded
+    block. ``iso_status`` is "ok" or the failure status of isolate_candidate.
+    """
+    rows = []
+    for product in tsft_results:
+        tsft = tsft_key(product["tsft"])
+        tic = time.perf_counter()
+        track_power = float(total_track_power(product["track_index"], product["power"]))
+        top_windows, flag = screen_windows(product["track_index"], product["power"], N_POWER_WINDOWS, TOP_N_BLOCKS,
+                                           POWER_THRESHOLD_K)
+        status, _windows, _optimal, expanded = isolate_candidate(product["track_index"], product["track_freq"],
+                                                                 product["power"], tsft)
+        row = {
+            "tsft": tsft,
+            "track_power": track_power,
+            "nsigma": (track_power - noise_means[tsft]) / noise_stds[tsft],
+            "n_steps": len(product["track_index"]),
+            "n_top_windows": len(top_windows),
+            "dominant_window": bool(flag),
+            "iso_status": status or "ok",
+            "nmse": None, "nmse_raw": None, "mass": None, "block_start_s": None, "block_end_s": None,
+        }
+        if expanded is not None:
+            nmse = float(expanded.get("final_nmse", np.inf))
+            if not np.isfinite(nmse):
+                nmse_values = np.asarray(expanded.get("best_nmse", []), dtype=float)
+                nmse = float(np.min(nmse_values)) if nmse_values.size > 0 else np.inf
+            row.update(nmse=nmse, nmse_raw=expanded.get("final_nmse_raw"),
+                       mass=float(expanded.get("final_mass", expanded["best_mass"][0])),
+                       block_start_s=float(expanded["block_start"]) * tsft,
+                       block_end_s=float(expanded["block_end"]) * tsft)
+        row["iso_seconds"] = round(time.perf_counter() - tic, 3)
+        rows.append(row)
+    return rows

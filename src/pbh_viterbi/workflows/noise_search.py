@@ -26,8 +26,19 @@ import logging
 from pbh_viterbi.jobs import split_for_job
 from pbh_viterbi.o3.frames import read_pack_frames, write_raw_framecache
 from pbh_viterbi.o3.packs import pack_window, parse_pack_list
-from pbh_viterbi.results import FIELDNAMES, append_rows, csv_name, finish_shard, result_row, shard_path, write_rows
-from pbh_viterbi.search.candidates import search_candidate
+from pbh_viterbi.results import (
+    FIELDNAMES,
+    PER_TSFT_FIELDNAMES,
+    append_rows,
+    csv_name,
+    finish_shard,
+    per_tsft_csv_name,
+    per_tsft_rows,
+    result_row,
+    shard_path,
+    write_rows,
+)
+from pbh_viterbi.search.candidates import per_tsft_candidates, search_candidate
 from pbh_viterbi.search.power import check_background, load_noise_background, total_track_power
 from pbh_viterbi.workflows.common import (
     add_common_arguments,
@@ -51,7 +62,7 @@ def parse_args():
     return resolve_tsft_and_background(parser.parse_args())
 
 
-def process_pack(pack, args, noise_background):
+def process_pack(pack, args, noise_background, per_tsft_output=None):
     t_start, t_end = pack_window(pack)
     pack_dir = existing_pack_dir(pack, args.o3_dir)
     segments = read_pack_frames(pack_dir, t_start) if args.sft_method == "fast" else None
@@ -63,6 +74,9 @@ def process_pack(pack, args, noise_background):
             {"pack": pack, "tsft": float(p["tsft"]), "total_power": float(total_track_power(p["track_index"], p["power"]))}
             for p in products
         ]
+    if per_tsft_output is not None:  # [UNDER TEST] Tsft-selection study
+        append_rows(per_tsft_rows(pack, per_tsft_candidates(products, *noise_background), injected=False),
+                    per_tsft_output, PER_TSFT_FIELDNAMES)
     return [result_row(pack, search_candidate(products, *noise_background), injected=False)]
 
 
@@ -82,12 +96,19 @@ def main():
     log.info("Job %d/%d (%s mode, %s SFTs, %d Tsft): packs %s -> %s", args.job_id, args.n_jobs, args.mode,
              args.sft_method, len(args.tsft), packs, output)
     write_rows([], output, fields)
+    per_tsft = args.per_tsft_output and not background
+    per_tsft_name = per_tsft_csv_name(injected=False)
+    per_tsft_output = shard_path(per_tsft_name, args.n_jobs, args.job_id) if per_tsft else None
+    if per_tsft:
+        write_rows([], per_tsft_output, PER_TSFT_FIELDNAMES)
 
     for index, pack in enumerate(packs, start=1):
         log.info("[%d/%d] Pack %d", index, len(packs), pack)
-        append_rows(process_pack(pack, args, noise_background), output, fields)
+        append_rows(process_pack(pack, args, noise_background, per_tsft_output), output, fields)
 
     finish_shard(name, args.n_jobs, args.job_id, fields)
+    if per_tsft:
+        finish_shard(per_tsft_name, args.n_jobs, args.job_id, PER_TSFT_FIELDNAMES)
     log.info("Job finished.")
 
 

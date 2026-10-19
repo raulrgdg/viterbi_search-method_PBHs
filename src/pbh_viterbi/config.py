@@ -46,6 +46,10 @@ TSFT_LISTS = {
            63.5, 79.5, 99.5, 124.5, 154.5, 193.875, 238.125, 298.75, 377.0),
     "paper": (2, 3, 4, 5, 7, 10, 13, 18, 25, 35, 47, 63, 88),
 }
+# [UNDER TEST] "union": every Tsft of the three lists (79 values), used only by the
+# Tsft-selection study (studies/tsft_selection), which evaluates several
+# selection rules offline on the per-Tsft products of one run.
+TSFT_LISTS["union"] = tuple(sorted(set().union(*TSFT_LISTS.values())))
 DEFAULT_TSFT_LIST = "95"
 TSFT_VALUES = TSFT_LISTS[DEFAULT_TSFT_LIST]
 

@@ -23,6 +23,13 @@ endif
 if !defined results_dir
     results_dir = results
 endif
+# Extra options of injected_search (e.g. "--per-tsft-output") and memory request.
+if !defined search_args
+    search_args =
+endif
+if !defined memory
+    memory = 4GB
+endif
 if !defined n_queue
     n_queue = $(n_jobs)
 endif
@@ -34,7 +41,7 @@ endif
 
 executable  = /bin/bash
 arguments   = scripts/run_injected_search.sh $(n_jobs) $(Process) $(pack)
-environment = "TSFT_LIST=$(tsft_list) SFT_METHOD=$(sft_method) PBH_CONDA_ENV=$(conda_env) PBH_VITERBI_RESULTS=$(results_dir)"
+environment = "TSFT_LIST=$(tsft_list) SFT_METHOD=$(sft_method) PBH_CONDA_ENV=$(conda_env) PBH_VITERBI_RESULTS=$(results_dir) SEARCH_ARGS='$(search_args)'"
 
 # Jobs read the repository and write results/ in place: shared filesystem only.
 should_transfer_files = NO
@@ -47,7 +54,7 @@ error  = $(results_dir)/logs/injected_search_pack-$(pack).$(ClusterId).$(Process
 request_cpus   = 1
 # Skip the 2008 AMD Opteron nodes (no AVX, several times slower per injection).
 requirements   = (TARGET.cpuinfo_model_name =?= undefined) || !regexp("Opteron", TARGET.cpuinfo_model_name)
-request_memory = 4GB
+request_memory = $(memory)
 request_disk   = 1GB
 
 accounting_group      = ligo.dev.o4.cw.transient.viterbi

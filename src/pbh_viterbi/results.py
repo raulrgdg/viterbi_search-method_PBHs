@@ -34,6 +34,29 @@ FIELDNAMES = [
 ]
 
 
+# [UNDER TEST] One row per chunk and Tsft, written with --per-tsft-output for the
+# Tsft-selection study (studies/tsft_selection); see search.candidates.per_tsft_candidates.
+PER_TSFT_FIELDNAMES = [
+    "pack", "signal_id", "injected",  # chunk; signal_id joins the injection parameters of the main CSV
+    "tsft", "track_power", "nsigma", "n_steps",  # Viterbi track of this Tsft
+    "n_top_windows", "dominant_window", "iso_status",  # candidate isolation ("ok" or failure status)
+    "nmse", "nmse_raw", "mass", "block_start_s", "block_end_s",  # expanded block, when isolated
+    "iso_seconds",
+]
+
+
+def per_tsft_rows(pack, rows, injected, signal_id=None):
+    """Per-Tsft rows (from per_tsft_candidates) of one chunk, ready for PER_TSFT_FIELDNAMES."""
+    base = {"pack": int(pack), "signal_id": int(signal_id) if signal_id is not None else None,
+            "injected": 1 if injected else 0}
+    return [{key: _fmt(value) for key, value in {**base, **row}.items()} for row in rows]
+
+
+def per_tsft_csv_name(injected, pack=None):
+    """[UNDER TEST] File of the per-Tsft rows, next to the main result file."""
+    return "per_tsft_" + csv_name(injected, pack).removeprefix("search_results_")
+
+
 def _fmt(value):
     if value is None:
         return ""

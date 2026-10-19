@@ -31,8 +31,18 @@ from pbh_viterbi.config import DEFAULT_SKY_SEED, INCLINATION, t_to_merger_for_mc
 from pbh_viterbi.jobs import split_for_job
 from pbh_viterbi.o3.frames import read_pack_frames, write_injected_framecache
 from pbh_viterbi.o3.packs import pack_window
-from pbh_viterbi.results import append_rows, csv_name, finish_shard, result_row, shard_path, write_rows
-from pbh_viterbi.search.candidates import search_candidate
+from pbh_viterbi.results import (
+    PER_TSFT_FIELDNAMES,
+    append_rows,
+    csv_name,
+    finish_shard,
+    per_tsft_csv_name,
+    per_tsft_rows,
+    result_row,
+    shard_path,
+    write_rows,
+)
+from pbh_viterbi.search.candidates import per_tsft_candidates, search_candidate
 from pbh_viterbi.search.power import check_background, load_noise_background
 from pbh_viterbi.waveform.injection import build_signal_grid, inject_in_memory, inject_signal, sample_sky
 from pbh_viterbi.workflows.common import (
@@ -99,6 +109,10 @@ def main():
     log.info("Job %d/%d (%s SFTs, %d Tsft): %d signal(s) %s -> %s", args.job_id, args.n_jobs, args.sft_method,
              len(args.tsft), len(signal_ids), f"[{signal_ids[0]}..{signal_ids[-1]}]" if signal_ids else "[]", output)
     write_rows([], output)
+    per_tsft_name = per_tsft_csv_name(injected=True, pack=args.pack)  # [UNDER TEST] Tsft-selection study
+    per_tsft_output = shard_path(per_tsft_name, args.n_jobs, args.job_id) if args.per_tsft_output else None
+    if per_tsft_output is not None:
+        write_rows([], per_tsft_output, PER_TSFT_FIELDNAMES)
 
     if signal_ids:
         noise_means, noise_stds = load_noise_background(args.noise_background)
@@ -123,8 +137,13 @@ def main():
             append_rows([result_row(args.pack, result, injected=True, mchirp=mchirp, distance=distance, sky=sky,
                                     signal_id=signal_id, inclination=INCLINATION, t_to_merger=t_to_merger)],
                         output)
+            if per_tsft_output is not None:
+                append_rows(per_tsft_rows(args.pack, per_tsft_candidates(products, noise_means, noise_stds),
+                                          injected=True, signal_id=signal_id), per_tsft_output, PER_TSFT_FIELDNAMES)
 
     finish_shard(name, args.n_jobs, args.job_id)
+    if per_tsft_output is not None:
+        finish_shard(per_tsft_name, args.n_jobs, args.job_id, PER_TSFT_FIELDNAMES)
     log.info("Job finished.")
 
 
