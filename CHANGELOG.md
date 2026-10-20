@@ -12,16 +12,20 @@
   fluctuation of a long Tsft won the nσ selection over weak, well-fitted
   heavy signals (pack 25: 75/200 injections lost). See
   `studies/tsft_selection` and `studies/ranking_statistic`.
-* **NMSE_eff**: a saturated short block (≤ 24 SFT steps drifting one remapped
-  bin per step, the largest Viterbi jump) is a straight line that noise fits
-  with NMSE down to 1e-9; its NMSE is raised to 6.6e-4. The three values come
-  from the noise background alone (`config.py`).
+* **NMSE_eff = NMSE + 1/(4D²)**, the quantisation limit of the fit: the
+  Viterbi track takes integer remapped bins, so no fit of a track drifting D
+  bins resolves an NMSE below (1/12)/(D²/3) = 1/(4D²). Without it, short noise
+  tracks that jump one bin per step (straight lines on the grid) were fitted
+  with NMSE down to 1e-9. The coefficient is not tuned (checked on fits of
+  quantised ramps, `tests/test_ranking.py`). It replaces the step-count floor
+  D''' of the study (three tuned values) at a cost of ~0.5–1.5 points of
+  efficiency.
 * **Linear detection threshold** `analysis/compute_threshold_linear.py`:
   R_a ≥ t, t set on the noise triggers only (FAR k/N with Clopper-Pearson
   intervals). The polynomial of the paper extrapolates below the noise NMSE
   range, can decrease with NMSE and does not generalise (out-of-fold FAR 5.7%
   for a 3% target). Out of fold, the hybrid selection with the linear
-  threshold recovers 59.4% (FAR 3%) and 57.0% (FAR 1%) of the study
+  threshold recovers 57.8% (FAR 3%) and 56.6% (FAR 1%) of the study
   injections, against 48.4% and 45.8% for v1.1.
 * Result CSVs gain `ranking_stat`, `nmse_eff` and `selection`; new statuses
   `rejected_ranking_threshold` and `no_isolated_tsft`.

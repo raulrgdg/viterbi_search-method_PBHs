@@ -6,15 +6,15 @@ Three ways of choosing the Tsft of a chunk among the 45 of list 95:
   nsigma          largest nsigma (rule B, v1.1 default)
   NMSE            smallest NMSE among the Tsft with an isolated candidate
                   (D' with K = 45), raw NMSE
-  NMSE, D'''      the same, but the NMSE of saturated short blocks (<= 24 steps
-                  drifting one remapped bin per step) is raised to >= 1e-3,
-                  since noise fits such straight segments with NMSE ~ 0
-  R_a (hybrid)    the isolated Tsft of largest R_a = nsigma - a log10 NMSE
-                  (D''' NMSE), with the same a as the threshold: a single
-                  parameter, chosen on the training folds
+  NMSE_eff        the same with NMSE_eff = NMSE + 1/(4 D^2), the quantisation
+                  limit of a track drifting D remapped bins (noise fits short
+                  straight segments on the bin grid with NMSE ~ 0)
+  R_a (hybrid)    the isolated Tsft of largest R_a = nsigma - a log10 NMSE_eff,
+                  with the same a as the threshold: a single parameter, chosen
+                  on the training folds (the search default)
 
 The detection statistic is the same for all: R_a = nsigma - a log10(NMSE) of
-the chosen Tsft, with the linear threshold of studies/ranking_statistic
+the chosen Tsft (NMSE_eff for the last two), with the linear threshold of studies/ranking_statistic
 (a and the threshold fitted on 2 of 3 pack folds, applied to the third), so the
 efficiencies and false alarms are out of fold.
 
@@ -45,11 +45,11 @@ from pbh_viterbi.search.ranking import clopper_pearson, pack_folds, threshold_fo
 FARS = (0.03, 0.01)
 METRICS = {  # label: (rule, TOP_K, colour, marker, line style)
     "Tsft by nσ (B, v1.1)": ("B_max_nsigma_95", selection.TOP_K, "#eb6834", "s", "-"),
-    "Tsft by NMSE (D''', K = 45)": ("D_topk_nmse_sat_95", 45, "#6250d6", "X", "-"),
-    "Tsft by raw NMSE (no saturated-block fix)": ("D_topk_nmse_95", 45, "#6b6a64", "o", "--"),
-    "Tsft by R_a = nσ − a log10 NMSE (hybrid)": ("hybrid", None, "#008300", "P", "-"),
+    "Tsft by raw NMSE (K = 45)": ("D_topk_nmse_95", 45, "#6b6a64", "o", "--"),
+    "Tsft by NMSE_eff = NMSE + 1/(4D²)": ("nmse_eff_all", None, "#6250d6", "X", "-"),
+    "Tsft by R_a = nσ − a log10 NMSE_eff (hybrid)": ("hybrid", None, "#008300", "P", "-"),
 }
-HYBRID = "Tsft by R_a = nσ − a log10 NMSE (hybrid)"
+HYBRID = "Tsft by R_a = nσ − a log10 NMSE_eff (hybrid)"
 
 
 def hybrid_cv(noise_tab, inj_tab, params, folds, far):
@@ -101,10 +101,18 @@ def main():
                 rows.append(dict(metric=label, far=far, recovered=int(det["det"].sum()), injections=len(det),
                                  efficiency=det["det"].mean(), false_positives=false, noise=n_noise))
             continue
-        selection.TOP_K = top_k
-        n = selection.apply_rule(rule, noise_tab, noise_tab).sort_values("pack").reset_index(drop=True)
-        i = (selection.apply_rule(rule, inj_tab, noise_tab).drop(columns=["mchirp", "distance"], errors="ignore")
-             .merge(params, on=["pack", "signal_id"]).sort_values(["pack", "signal_id"]).reset_index(drop=True))
+        if rule == "nmse_eff_all":  # smallest NMSE_eff over the isolated Tsft (selection a = inf)
+            n = selection.select_by_ranking(noise_tab, np.inf)
+            i = selection.select_by_ranking(inj_tab, np.inf)
+            for df in (n, i):
+                df["isolated"] = df["isolated"].astype("boolean").fillna(False).astype(bool)
+        else:
+            selection.TOP_K = top_k
+            n = selection.apply_rule(rule, noise_tab, noise_tab)
+            i = selection.apply_rule(rule, inj_tab, noise_tab)
+        n = n.sort_values("pack").reset_index(drop=True)
+        i = (i.drop(columns=["mchirp", "distance"], errors="ignore").merge(params, on=["pack", "signal_id"])
+             .sort_values(["pack", "signal_id"]).reset_index(drop=True))
         n["fold"], i["fold"] = n["pack"].map(folds), i["pack"].map(INJ_FOLDS)
         for far in FARS:
             res = cv_job(("linear", label, far, n, i))

@@ -32,7 +32,7 @@ FIELDNAMES = [
     "injected",   # 1 for injected searches, 0 for noise
     "status",     # outcome of the candidate isolation
     "ranking_stat",  # R_a = nsigma - a log10(nmse_eff) of the selected Tsft (hybrid selection); empty otherwise
-    "nmse_eff",   # NMSE used in R_a: saturated short blocks raised to SAT_NMSE_FLOOR (hybrid selection)
+    "nmse_eff",   # NMSE used in R_a: NMSE + 1/(4 D^2), its quantisation limit (hybrid selection)
     "selection",  # Tsft selection: "hybrid" or "max_nsigma"
 ]
 

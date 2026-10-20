@@ -102,17 +102,20 @@ TSFT_SELECTION = "hybrid"
 # packs, 1800 injections): largest efficiency at FAR 3% and 1%, the same value
 # in every cross-validation fold; the efficiency changes by < 1% for a in [2, 10].
 RANKING_NMSE_WEIGHT = 5.0
-# NMSE_eff: a saturated short block (a Viterbi track jumping one remapped bin per
-# step, the largest allowed jump) is a straight line that noise and signals alike
-# fit with NMSE ~ 0, so its NMSE is raised to SAT_NMSE_FLOOR. All three values come
-# from the noise background alone (141 packs x 79 Tsft):
-SAT_MAX_STEPS = 24  # longest block among the noise fits with NMSE < 1e-6
-SAT_RATE_TOL = 1e-3  # |drift per step - 1 bin|; slope resolution of the mass grid is 7.7e-4
-SAT_NMSE_FLOOR = 6.6e-4  # 0.1% quantile of the NMSE of the non-saturated noise fits
+# NMSE_eff = NMSE + NMSE_QUANT_COEFF / D^2, with D the drift of the fitted inspiral
+# across the isolated block, in remapped bins (search.ranking.quantised_nmse).
+# The Viterbi track lives on integer bins: rounding a line to the grid leaves
+# residuals uniform in [-1/2, 1/2] bin (mean square 1/12), and a ramp of D bins has
+# mean square displacement D^2/3, so no fit resolves an NMSE below
+# (1/12) / (D^2/3) = 1/(4 D^2). Without it, short noise tracks that jump one bin per
+# step (straight lines on the grid) were fitted with NMSE down to 1e-9.
+# The coefficient follows from this argument, it is not fitted
+# (tests/test_ranking.py checks it on the fit of quantised ramps).
+NMSE_QUANT_COEFF = 0.25
 # Provisional R_a threshold for the candidate/status columns: FAR 3% of the 141
 # noise packs of the study. The final threshold comes from the noise search of the
 # campaign (analysis/compute_threshold_linear.py).
-PROVISIONAL_RANKING_THRESHOLD = 17.3
+PROVISIONAL_RANKING_THRESHOLD = 16.5
 
 # --------------------------------------------------------------------------
 # Injected population (Table I)

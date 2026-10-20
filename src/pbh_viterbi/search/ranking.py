@@ -31,7 +31,7 @@ import numpy as np
 from scipy.optimize import differential_evolution
 from scipy.stats import beta
 
-from pbh_viterbi.config import FBAND, FMAX, FMIN
+from pbh_viterbi.config import FBAND, FMAX, FMIN, NMSE_QUANT_COEFF
 from pbh_viterbi.search.fitting import slope_of_mass
 
 
@@ -48,19 +48,20 @@ def drift_bins(mass, block_start_s, block_end_s, tsft):
     return np.abs(slope_of_mass(np.asarray(mass, float))) * duration / bin_width
 
 
-def saturated_block(mass, block_start_s, block_end_s, tsft, max_steps, rate_tol):
-    """Blocks of at most ``max_steps`` SFT steps whose fit drifts one remapped bin per step."""
-    steps = block_steps(block_start_s, block_end_s, tsft)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        rate = drift_bins(mass, block_start_s, block_end_s, tsft) / steps
-    return (steps <= max_steps) & (np.abs(rate - 1.0) < rate_tol)
+def quantised_nmse(nmse, mass, block_start_s, block_end_s, tsft, coeff=NMSE_QUANT_COEFF):
+    """NMSE_eff = NMSE + coeff / D^2: the NMSE with the quantisation limit of the track added.
 
-
-def effective_nmse(nmse, mass, block_start_s, block_end_s, tsft, max_steps, rate_tol, floor):
-    """NMSE with saturated short blocks raised to at least ``floor`` (their NMSE carries no information)."""
-    nmse = np.asarray(nmse, float)
-    sat = saturated_block(mass, block_start_s, block_end_s, tsft, max_steps, rate_tol)
-    return np.where(sat, np.maximum(nmse, floor), nmse)
+    The Viterbi track takes integer remapped bins, so a straight line rounded to
+    the grid has residuals uniform in [-1/2, 1/2] bin (mean square 1/12); a ramp
+    of D bins has mean square displacement D^2/3 (NMSE = sum residual^2 /
+    sum displacement^2, search.fitting.fit_slope_windows). No fit can resolve an
+    NMSE below (1/12) / (D^2/3) = 1/(4 D^2): coeff = config.NMSE_QUANT_COEFF = 1/4.
+    D is the drift of the fitted inspiral across the block (drift_bins); a block
+    with no drift gets an infinite NMSE_eff (no chirp information).
+    """
+    drift = np.asarray(drift_bins(mass, block_start_s, block_end_s, tsft), float)
+    with np.errstate(divide="ignore"):
+        return np.asarray(nmse, float) + coeff / drift ** 2
 
 
 def linear_stat(nsigma, nmse, a):

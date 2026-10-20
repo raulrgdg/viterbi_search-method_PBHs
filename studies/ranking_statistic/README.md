@@ -149,3 +149,36 @@ The hybrid recovers the light masses to the level of B at FAR 3% (18.2 vs
 choice at intermediate and heavy masses, and has the best total. Nearby light
 signals (0.1–0.56 kpc) are still recovered at 87% (FAR 3%) and 83% (1%)
 against ~95% for B.
+
+## NMSE_eff from the quantisation of the track (replaces D''', 2026-10-21)
+
+D''' raised the NMSE of saturated short blocks to a fixed floor. It works, but
+it needs three tuned values and leaves a column of triggers at the floor in the
+ranking plane. The cause has a simpler description: the Viterbi track takes
+integer remapped bins. A line rounded to the grid has residuals uniform in
+[−½, ½] bin (mean square 1/12), and a ramp of D bins has mean square
+displacement D²/3; since NMSE = Σ residual² / Σ displacement²
+(`fitting.fit_slope_windows`), no fit can resolve an NMSE below
+
+    NMSE_q = (1/12) / (D²/3) = 1/(4 D²).
+
+The search uses NMSE_eff = NMSE + 1/(4D²), D the drift of the fitted inspiral
+across the block (`ranking.quantised_nmse`, `config.NMSE_QUANT_COEFF`). Fitting
+quantised ramps gives 0.98–1.4 × 1/(4D²) for D = 10–1000
+(`tests/test_ranking.py`). For the longest saturated noise block (D = 24)
+1/(4D²) = 4.3e-4, close to the empirical floor 6.6e-4 of D'''; for signal
+tracks (D ~ 10²–10³) it is 10⁻⁶–10⁻⁷.
+
+Out of fold, linear threshold (`plot_selection_metric.py`):
+
+| Tsft chosen by | FAR 3% (noise above) | FAR 1% | light / intermediate / heavy (3%) |
+|---|---|---|---|
+| largest nσ (B, v1.1) | 48.4% (4/141) | 45.8% (3/141) | 18.5 / 59.7 / 67.2% |
+| smallest NMSE_eff | 57.3% (3/141) | 55.5% (2/141) | 14.5 / 68.7 / 88.7% |
+| **largest R_a, NMSE_eff (hybrid, search default)** | **57.8% (4/141)** | **56.6% (1/141)** | 16.5 / 68.3 / 88.7% |
+| largest R_a with the D''' floor (for reference) | 59.4% (5/141) | 57.0% (2/141) | 18.2 / 68.5 / 91.7% |
+
+`fig_plane_hybrid.png` (`plot_plane.py`) shows the plane without the column;
+`fig_plane_nmse_eff_stepfloor.png` is the D''' version. A few noise triggers
+share an NMSE_eff: exact staircases of the same Tsft and length, whose NMSE is
+only the quantisation term.

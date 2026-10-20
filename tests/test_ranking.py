@@ -46,3 +46,31 @@ def test_clopper_pearson_and_folds():
     assert lo == 0.0 and 0 < hi < 0.02
     folds = pack_folds(range(1, 142), 3)
     assert sorted(np.bincount(list(folds.values()))) == [47, 47, 47]
+
+
+def test_quantised_nmse_formula():
+    from pbh_viterbi.search.ranking import quantised_nmse
+
+    m, t = 1e-2, float(tsft_lim(1e-2))
+    # A block of 50 steps at the tracking limit drifts D = 50 bins: NMSE_eff = NMSE + 1/(4 * 50^2).
+    assert quantised_nmse(1e-6, m, 0.0, 50 * t, t) == pytest.approx(1e-6 + 0.25 / 50 ** 2)
+    assert np.isinf(quantised_nmse(1e-6, m, 0.0, 0.0, t))  # no drift, no chirp information
+
+
+@pytest.mark.parametrize("drift", [10, 24, 100, 300])
+def test_quantisation_limit_matches_the_fit(drift):
+    """Fitting straight lines rounded to integer bins gives NMSE ~ 1/(4 D^2) (the coefficient is not tuned)."""
+    from pbh_viterbi.config import FBAND, FMAX, FMIN, NMSE_QUANT_COEFF
+    from pbh_viterbi.search.fitting import fit_slope_windows, mass_grid
+
+    rng = np.random.default_rng(drift)
+    tsft = 10.0
+    bin_width = (FMIN ** (-8 / 3) - FMAX ** (-8 / 3)) / (FBAND * tsft)
+    nmse = []
+    for _ in range(30):
+        n_steps = int(drift / rng.uniform(0.3, 0.95)) + 1  # non-integer slope, 0.3-0.95 bin per step
+        line = np.linspace(0, drift, n_steps) + rng.uniform(0, 1)
+        track = -np.floor(line + 0.5) * bin_width  # the Viterbi track takes integer bins
+        nmse.append(fit_slope_windows(track, tsft, 1, mass_grid())[4][0])
+    ratio = np.median(nmse) / (NMSE_QUANT_COEFF / drift ** 2)
+    assert 0.7 < ratio < 1.5

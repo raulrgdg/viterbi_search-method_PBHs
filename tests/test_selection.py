@@ -131,13 +131,22 @@ def test_saturated_short_block_nmse_is_not_trusted():
 
 
 def test_hybrid_selection_interpolates_between_nsigma_and_nmse():
+    from pbh_viterbi.search.ranking import quantised_nmse
     from pbh_viterbi.search.selection import select_by_ranking
+    from pbh_viterbi.tsft import tsft_lim
 
+    lo, hi = 1e-6, 1e-1  # mass with T_lim = LONG: a 100-step block at LONG drifts D = 100 bins
+    for _ in range(200):
+        mid = np.sqrt(lo * hi)
+        lo, hi = (mid, hi) if tsft_lim(mid) > LONG else (lo, mid)
+    m_long = np.sqrt(lo * hi)
     # Loud but poorly fitted Tsft vs weaker, well fitted one; a third Tsft is not isolated.
-    rows = chunk(1, 0, 1, [(SHORT, 8.0, "ok", 1e-1, 0.1), (LONG, 3.0, "ok", 1e-6, 1e-4),
+    rows = chunk(1, 0, 1, [(SHORT, 8.0, "ok", 1e-1, 0.1), (LONG, 3.0, "ok", 1e-6, m_long),
                            (4.25, 20.0, "failed_third_fit_check", None, None)])
     df = prepare(pd.DataFrame(rows))
     assert select_by_ranking(df, 0.0).loc[0, "tsft"] == SHORT  # largest nsigma among isolated
-    assert select_by_ranking(df, np.inf).loc[0, "tsft"] == LONG  # smallest NMSE
+    assert select_by_ranking(df, np.inf).loc[0, "tsft"] == LONG  # smallest NMSE_eff
+    nmse_eff = float(quantised_nmse(1e-6, m_long, 0.0, 100 * LONG, LONG))
+    assert nmse_eff == pytest.approx(1e-6 + 0.25 / 100 ** 2, rel=1e-3)
     sel = select_by_ranking(df, 2.0)
-    assert sel.loc[0, "tsft"] == LONG and sel.loc[0, "stat"] == pytest.approx(3.0 + 12.0)
+    assert sel.loc[0, "tsft"] == LONG and sel.loc[0, "stat"] == pytest.approx(3.0 - 2.0 * np.log10(nmse_eff))

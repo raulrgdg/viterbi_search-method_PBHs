@@ -26,12 +26,13 @@ Rules (RULES):
   D_topk_nmse_len_95   as D', counting as isolated only blocks of at least
                        MIN_BLOCK_STEPS SFT steps (noise tracks that jump one
                        bin per step give NMSE ~ 1e-9 over 2-24 steps)
-  D_topk_nmse_sat_95   (D''') as D', but the NMSE of a saturated short block
-                       (<= SAT_MAX_STEPS steps drifting one remapped bin per
-                       step, the largest Viterbi jump) is raised to at least
-                       SAT_NMSE_FLOOR: such a straight segment is fitted with
-                       NMSE ~ 0 by noise and by signals alike, so its NMSE
-                       carries no information and nsigma decides
+  D_topk_nmse_sat_95   (D''', superseded) as D', but the NMSE of a saturated
+                       short block (<= DPPP_MAX_STEPS steps drifting one
+                       remapped bin per step, the largest Viterbi jump) is
+                       raised to at least DPPP_NMSE_FLOOR. Replaced in the
+                       search by the quantisation limit of the NMSE
+                       (search.ranking.quantised_nmse); kept to reproduce the
+                       study tables
   E_mass_consistent_95 as D, keeping only Tsft <= 1.5 T_lim(fitted chirp mass)
                        (the margin covers the drift tolerated by the Tsft
                        lists, (Tsft/T_lim)^2 <= 1.03, and the error of the
@@ -46,10 +47,9 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from pbh_viterbi import config
 from pbh_viterbi.config import TSFT_LISTS
 from pbh_viterbi.search.power import tsft_key
-from pbh_viterbi.search.ranking import effective_nmse
+from pbh_viterbi.search.ranking import block_steps, drift_bins, quantised_nmse
 from pbh_viterbi.tsft import tsft_lim
 
 CHUNK_KEYS = ["injected", "pack", "signal_id"]
@@ -58,10 +58,10 @@ TOP_K = 5
 T_LIM_MARGIN = 1.5
 P_FLOOR = 1e-300
 MIN_BLOCK_STEPS = 32
-# D''' parameters: the search values (config.py); module names so a study can vary them.
-SAT_MAX_STEPS = config.SAT_MAX_STEPS
-SAT_RATE_TOL = config.SAT_RATE_TOL
-SAT_NMSE_FLOOR = config.SAT_NMSE_FLOOR
+# D''' (superseded by the quantisation limit): values of the study, module names so they can be varied.
+DPPP_MAX_STEPS = 24  # longest saturated noise block with NMSE < 1e-6 (141 packs, 79 Tsft)
+DPPP_RATE_TOL = 1e-3  # |drift per step - 1 bin|
+DPPP_NMSE_FLOOR = 1e-3
 
 
 def _tsft_set(name):
@@ -133,14 +133,17 @@ def _top_k_by_nsigma(df, tsft_set, k):
 
 
 def saturation_adjusted_nmse(df):
-    """NMSE with the D''' correction: saturated short blocks get NMSE >= SAT_NMSE_FLOOR.
+    """[superseded] D''' NMSE: saturated short blocks get NMSE >= DPPP_NMSE_FLOOR."""
+    steps = block_steps(df["block_start_s"], df["block_end_s"], df["tsft"])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rate = drift_bins(df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"]) / steps
+    saturated = df["isolated"] & (steps <= DPPP_MAX_STEPS) & (np.abs(rate - 1.0) < DPPP_RATE_TOL)
+    return df["nmse"].where(~saturated, np.maximum(df["nmse"], DPPP_NMSE_FLOOR))
 
-    A block of <= SAT_MAX_STEPS steps drifting one remapped bin per step (the
-    largest Viterbi jump) is a straight line that noise and signals alike fit
-    with NMSE ~ 0, so its NMSE carries no information.
-    """
-    eff = effective_nmse(df["nmse"], df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"],
-                         SAT_MAX_STEPS, SAT_RATE_TOL, SAT_NMSE_FLOOR)
+
+def nmse_eff(df):
+    """NMSE_eff of the search: NMSE plus its quantisation limit 1/(4 D^2) (search.ranking.quantised_nmse)."""
+    eff = quantised_nmse(df["nmse"], df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"])
     return df["nmse"].where(~df["isolated"], pd.Series(eff, index=df.index))
 
 
@@ -148,13 +151,12 @@ def select_by_ranking(df, a, tsft_list="95"):
     """[UNDER TEST] Hybrid rule: per chunk, the isolated Tsft of largest R_a = nsigma - a log10(NMSE).
 
     The Tsft is chosen with the same statistic the detection threshold uses
-    (search.ranking.linear_stat), NMSE with the D''' correction; a = 0 picks the
-    largest nsigma among isolated Tsft, a -> inf the smallest NMSE (D''' with
-    K = all). Returns one row per chunk with ``stat`` = that R_a (-inf when no
+    (search.ranking.linear_stat), with NMSE_eff (nmse_eff); a = 0 picks the
+    largest nsigma among isolated Tsft, a -> inf the smallest NMSE_eff. Returns one row per chunk with ``stat`` = that R_a (-inf when no
     Tsft is isolated).
     """
-    nmse = saturation_adjusted_nmse(df)
-    ok = df["isolated"] & df["tsft"].isin(_tsft_set(tsft_list))
+    nmse = nmse_eff(df)
+    ok = df["isolated"] & df["tsft"].isin(_tsft_set(tsft_list)) & np.isfinite(nmse)
     if np.isinf(a):
         score = -np.log10(nmse.where(ok))
     else:

@@ -29,15 +29,12 @@ from pbh_viterbi.config import (
     PROVISIONAL_THRESHOLD_INTERCEPT,
     PROVISIONAL_THRESHOLD_SLOPE,
     RANKING_NMSE_WEIGHT,
-    SAT_MAX_STEPS,
-    SAT_NMSE_FLOOR,
-    SAT_RATE_TOL,
     TOP_N_BLOCKS,
     TSFT_SELECTION,
 )
 from pbh_viterbi.search.fitting import expand_block, fit_candidate_blocks, fit_significant_blocks
 from pbh_viterbi.search.power import as_track, screen_windows, select_best_tsft, total_track_power, tsft_key
-from pbh_viterbi.search.ranking import effective_nmse, linear_stat
+from pbh_viterbi.search.ranking import linear_stat, quantised_nmse
 
 log = logging.getLogger(__name__)
 
@@ -170,8 +167,9 @@ def _search_max_nsigma(tsft_results, noise_means, noise_stds):
 def _search_hybrid(tsft_results, noise_means, noise_stds):
     """Isolate on every Tsft; keep the isolated Tsft of largest R_a = nsigma - a log10(NMSE_eff).
 
-    NMSE_eff is the NMSE with saturated short blocks raised to SAT_NMSE_FLOOR
-    (search.ranking.effective_nmse). If no Tsft gives an isolated candidate,
+    NMSE_eff is the NMSE plus its quantisation limit 1/(4 D^2), D the drift of
+    the fit in remapped bins (search.ranking.quantised_nmse). If no Tsft gives
+    an isolated candidate with a finite NMSE_eff,
     the Tsft of largest nsigma is reported with status ``no_isolated_tsft``.
     """
     rows = per_tsft_candidates(tsft_results, noise_means, noise_stds)
@@ -179,8 +177,10 @@ def _search_hybrid(tsft_results, noise_means, noise_stds):
     for row in rows:
         if row["iso_status"] != "ok" or not (row["nmse"] is not None and np.isfinite(row["nmse"]) and row["nmse"] > 0):
             continue
-        row["nmse_eff"] = float(effective_nmse(row["nmse"], row["mass"], row["block_start_s"], row["block_end_s"],
-                                               row["tsft"], SAT_MAX_STEPS, SAT_RATE_TOL, SAT_NMSE_FLOOR))
+        row["nmse_eff"] = float(quantised_nmse(row["nmse"], row["mass"], row["block_start_s"], row["block_end_s"],
+                                               row["tsft"]))
+        if not np.isfinite(row["nmse_eff"]):  # no drift: no chirp information
+            continue
         stat = float(linear_stat([row["nsigma"]], [row["nmse_eff"]], RANKING_NMSE_WEIGHT)[0])
         if stat > best_stat:
             best, best_stat = row, stat
