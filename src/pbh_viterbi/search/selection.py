@@ -26,6 +26,12 @@ Rules (RULES):
   D_topk_nmse_len_95   as D', counting as isolated only blocks of at least
                        MIN_BLOCK_STEPS SFT steps (noise tracks that jump one
                        bin per step give NMSE ~ 1e-9 over 2-24 steps)
+  D_topk_nmse_sat_95   (D''') as D', but the NMSE of a saturated short block
+                       (<= SAT_MAX_STEPS steps drifting one remapped bin per
+                       step, the largest Viterbi jump) is raised to at least
+                       SAT_NMSE_FLOOR: such a straight segment is fitted with
+                       NMSE ~ 0 by noise and by signals alike, so its NMSE
+                       carries no information and nsigma decides
   E_mass_consistent_95 as D, keeping only Tsft <= 1.5 T_lim(fitted chirp mass)
                        (the margin covers the drift tolerated by the Tsft
                        lists, (Tsft/T_lim)^2 <= 1.03, and the error of the
@@ -42,6 +48,7 @@ from scipy import stats
 
 from pbh_viterbi.config import TSFT_LISTS
 from pbh_viterbi.search.power import tsft_key
+from pbh_viterbi.search.ranking import drift_bins
 from pbh_viterbi.tsft import tsft_lim
 
 CHUNK_KEYS = ["injected", "pack", "signal_id"]
@@ -50,6 +57,9 @@ TOP_K = 5
 T_LIM_MARGIN = 1.5
 P_FLOOR = 1e-300
 MIN_BLOCK_STEPS = 32
+SAT_MAX_STEPS = 24  # longest saturated noise block with NMSE < 1e-6 (141 packs, 79 Tsft)
+SAT_RATE_TOL = 1e-3  # |drift per step - 1 bin| below which a block is saturated
+SAT_NMSE_FLOOR = 1e-3
 
 
 def _tsft_set(name):
@@ -160,6 +170,13 @@ def apply_rule(name, df, noise=None):
         long_block = df["isolated"] & (df["block_steps"] >= MIN_BLOCK_STEPS)
         df = df.assign(isolated=long_block)
         sel = _select(df, s95, -np.log10(df["nmse"].where(long_block)), long_block & _top_k_by_nsigma(df, s95, TOP_K))
+    elif name == "D_topk_nmse_sat_95":
+        steps = df["block_steps"]
+        rate = drift_bins(df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"]) / steps
+        saturated = df["isolated"] & (steps <= SAT_MAX_STEPS) & (np.abs(rate - 1.0) < SAT_RATE_TOL)
+        df = df.assign(nmse=df["nmse"].where(~saturated, np.maximum(df["nmse"], SAT_NMSE_FLOOR)))
+        sel = _select(df, s95, -np.log10(df["nmse"].where(df["isolated"])),
+                      df["isolated"] & _top_k_by_nsigma(df, s95, TOP_K))
     elif name == "E_mass_consistent_95":
         sel = _select(df, s95, nsigma, df["isolated"] & mass_consistent(df))
     else:
@@ -189,6 +206,7 @@ RULES = (
     "D_isolated_95",
     "D_topk_nmse_95",
     "D_topk_nmse_len_95",
+    "D_topk_nmse_sat_95",
     "E_mass_consistent_95",
 )
 

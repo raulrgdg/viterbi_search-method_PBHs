@@ -56,9 +56,9 @@ from pbh_viterbi.search.ranking import (  # noqa: E402
 )
 from pbh_viterbi.search.selection import apply_rule, prepare  # noqa: E402
 
-RULES = {"A": "A_max_nsigma_paper", "B": "B_max_nsigma_95", "D'": "D_topk_nmse_95", "D''": "D_topk_nmse_len_95"}
-COLORS = {"A": "#2a78d6", "B": "#eb6834", "D'": "#008300", "D''": "#e34948"}
-MARKERS = {"A": "o", "B": "s", "D'": "P", "D''": "*"}
+RULES = {"A": "A_max_nsigma_paper", "B": "B_max_nsigma_95", "D'": "D_topk_nmse_95", "D''": "D_topk_nmse_len_95", "D'''": "D_topk_nmse_sat_95"}
+COLORS = {"A": "#2a78d6", "B": "#eb6834", "D'": "#008300", "D''": "#e34948", "D'''": "#6250d6"}
+MARKERS = {"A": "o", "B": "s", "D'": "P", "D''": "*", "D'''": "X"}
 METHOD_COLORS = {"paper": "#6250d6", "monotone": "#1baf7a", "linear": "#eda100"}
 FARS = (0.03, 0.01)
 A_GRID = (0.0, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0, np.inf)
@@ -66,7 +66,7 @@ SLICES = {"light": (0, 200), "intermediate": (200, 400), "heavy": (400, 600)}
 INJ_FOLDS = {1: 0, 13: 0, 25: 0, 2: 1, 14: 1, 26: 1, 3: 2, 15: 2, 27: 2}
 N_FOLDS = 3
 N_BOOT = 1000
-DP, DPP = "D'", "D''"
+DP, DPP, DPPP = "D'", "D''", "D'''"
 INK, MUTED, GRID = "#1f1f1e", "#6b6a64", "#e4e3de"
 
 
@@ -233,7 +233,7 @@ def main():
             # paired D' - B, pack bootstrap (noise and injection packs resampled; threshold recomputed)
             max_false = int(np.floor(far * n_noise + 1e-9))
             boot_eff = {}
-            for r in ("B", "D'", "D''", "A"):
+            for r in ("B", "D'", "D''", "D'''", "A"):
                 n, i = sel[r]
                 zn = stat_a(n, a)  # one noise trigger per pack, ordered as noise_packs
                 zi = stat_a(i, a)
@@ -244,7 +244,7 @@ def main():
                     idx = np.concatenate([rows_of[k] for k in boot_inj[b]])
                     effs[b] = np.mean(zi[idx] > thr)
                 boot_eff[r] = effs
-            for other in ("D'", "D''", "A"):
+            for other in ("D'", "D''", "D'''", "A"):
                 gain, loss, p = paired(dets[other][0], dets["B"][0])
                 lo, hi = np.percentile(boot_eff[other] - boot_eff["B"], [16, 84])
                 scan_rows.append(dict(far=far, a=a, rule=f"{other}-B", gain=gain, loss=loss, mcnemar_p=p,
@@ -253,7 +253,7 @@ def main():
     scan.to_csv(out / "scan.csv", index=False)
 
     # ---- 2. cross-validation of the threshold constructions --------------------------------
-    jobs = [(m, r, far, sel[r][0], sel[r][1]) for m in FITTERS for r in ("B", "D'", "D''") for far in FARS]
+    jobs = [(m, r, far, sel[r][0], sel[r][1]) for m in FITTERS for r in ("B", "D'", "D''", "D'''", "A") for far in FARS]
     with ProcessPoolExecutor(max_workers=args.processes) as pool:
         cv = list(pool.map(cv_job, jobs))
     cv_rows = []
@@ -269,7 +269,7 @@ def main():
     for method in FITTERS:
         for far in FARS:
             get = {r["rule"]: r for r in cv if r["method"] == method and r["far"] == far}
-            for other in ("D'", "D''"):
+            for other in ("D'", "D''", "D'''", "A"):
                 gain, loss, p = paired(get[other]["oof_det"], get["B"]["oof_det"])
                 heavy = (sel["B"][1]["slice"] == "heavy").to_numpy()
                 hg, hl, hp = paired(get[other]["oof_det"][heavy], get["B"]["oof_det"][heavy])
@@ -297,9 +297,9 @@ def main():
         style_axes(ax)
         ax = axes[1, j]
         ax.axhline(0, color=MUTED, lw=0.8)
-        for other in ("D'", "D''", "A"):
+        for other in ("D'", "D''", "D'''", "A"):
             s = scan[(scan["far"] == far) & (scan["rule"] == f"{other}-B")]
-            x = s["a"].map(a_pos).to_numpy() + {"D'": -0.12, "D''": 0.0, "A": 0.12}[other]
+            x = s["a"].map(a_pos).to_numpy() + {"D'": -0.18, "D''": -0.06, "D'''": 0.06, "A": 0.18}[other]
             ax.errorbar(x, s["efficiency"], yerr=[np.clip(s["efficiency"] - s["ci_lo"], 0, None), np.clip(s["ci_hi"] - s["efficiency"], 0, None)],
                         color=COLORS[other], marker=MARKERS[other], ms=6, lw=0, elinewidth=1.4, capsize=2,
                         label=f"{other} − B (68% pack bootstrap)")
@@ -380,17 +380,18 @@ def main():
     lines = ["# Threshold review and D' across the ranking space [UNDER TEST]", "",
              f"{n_noise} noise packs, {n_inj} injections; thresholds at FAR 3% and 1%.", "",
              "## 1. Ranking-space scan (threshold from noise only)", "",
-             "| FAR | a | eff A | eff B | eff D' | eff D'' | D'−B (68% CI) | D' gain/loss vs B | McNemar p |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             "| FAR | a | eff A | eff B | eff D' | eff D'' | eff D''' | D'−B (68% CI) | D'''−B (68% CI) | D''' gain/loss vs B | McNemar p |",
+             "|---|---|---|---|---|---|---|---|---|---|---|"]
     for far in FARS:
         for a in A_GRID:
             s = scan[(scan["far"] == far) & (scan["a"] == a)].set_index("rule")
-            d = s.loc["D'-B"]
+            d, t = s.loc["D'-B"], s.loc["D'''-B"]
             lines.append(f"| {far:.0%} | {'∞' if np.isinf(a) else f'{a:g}'} | {s.loc['A', 'efficiency']:.3f} | "
                          f"{s.loc['B', 'efficiency']:.3f} | {s.loc[DP, 'efficiency']:.3f} | "
-                         f"{s.loc[DPP, 'efficiency']:.3f} | {d['efficiency']:+.3f} "
-                         f"[{d['ci_lo']:+.3f}, {d['ci_hi']:+.3f}] | {int(d['gain'])}/{int(d['loss'])} | "
-                         f"{d['mcnemar_p']:.2g} |")
+                         f"{s.loc[DPP, 'efficiency']:.3f} | {s.loc[DPPP, 'efficiency']:.3f} | "
+                         f"{d['efficiency']:+.3f} [{d['ci_lo']:+.3f}, {d['ci_hi']:+.3f}] | "
+                         f"{t['efficiency']:+.3f} [{t['ci_lo']:+.3f}, {t['ci_hi']:+.3f}] | "
+                         f"{int(t['gain'])}/{int(t['loss'])} | {t['mcnemar_p']:.2g} |")
     lines += ["", "## 2. Cross-validation of the threshold construction (3 folds over packs)", "",
               "| FAR | method | rule | out-of-fold eff | in-sample eff | out-of-fold noise above | FAR 68% CI |",
               "|---|---|---|---|---|---|---|"]
@@ -404,7 +405,7 @@ def main():
         lines.append(f"| {r['far']:.0%} | {r['method']} | {r['pair']} | {r['gain']}/{r['loss']} | {r['p']:.2g} | "
                      f"{r['heavy_gain']}/{r['heavy_loss']} | {r['heavy_p']:.2g} |")
     lines += ["", "## Figures", "",
-              "* `fig_ranking_scan`: efficiency vs a per rule, and D'−B, D''−B, A−B with bootstrap intervals.",
+              "* `fig_ranking_scan`: efficiency vs a per rule, and D'−B, D''−B, D'''−B, A−B with bootstrap intervals.",
               "* `fig_cv`: out-of-fold vs in-sample efficiency and out-of-fold false alarms per construction.",
               "* `fig_plane`: (log10 NMSE, nσ) of the selected triggers, short-block noise fits, D' gains/losses.",
               "* `fig_block_length`: block length vs NMSE for noise (every Tsft) and injections."]

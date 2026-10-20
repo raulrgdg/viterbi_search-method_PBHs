@@ -54,8 +54,8 @@ INJ_PARAMS = ["pack", "signal_id", "mchirp", "distance", "ra", "dec", "pol", "t_
 
 # Reference categorical palette (dataviz skill, light mode), fixed order = RULES order;
 # a marker per rule as second encoding so identity never relies on colour alone.
-COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#e34948", "#6250d6"]
-MARKERS = ["o", "s", "^", "v", "D", "P", "*", "X"]
+COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#e34948", "#3a3a38", "#6250d6"]
+MARKERS = ["o", "s", "^", "v", "D", "P", "*", "h", "X"]
 LABELS = {
     "A_max_nsigma_paper": "A  max nσ, 13 paper Tsft",
     "B_max_nsigma_95": "B  max nσ, 45 Tsft (v1.1)",
@@ -64,6 +64,7 @@ LABELS = {
     "D_isolated_95": "D  max nσ among isolated",
     "D_topk_nmse_95": "D' top-5 nσ, min NMSE",
     "D_topk_nmse_len_95": "D'' D' with blocks ≥ 32 steps",
+    "D_topk_nmse_sat_95": "D''' D', saturated short blocks: NMSE ≥ 1e-3",
     "E_mass_consistent_95": "E  D + Tsft ≤ 1.5 T_lim(M_fit)",
 }
 STYLE = {rule: dict(color=COLORS[i], marker=MARKERS[i], label=LABELS[rule]) for i, rule in enumerate(RULES)}
@@ -259,7 +260,7 @@ def main():
 
     # Selected Tsft of the injections against T_lim of the true mass
     mc_line = np.logspace(np.log10(MCHIRP_GRID.min()), np.log10(MCHIRP_GRID.max()), 200)
-    fig, axes = plt.subplots(3, 3, figsize=(13, 11))
+    fig, axes = plt.subplots(2, 5, figsize=(19, 7.5))
     tsft_all = TSFT_LISTS["union"]
     for ax, rule in zip(axes.flat, RULES):
         s = sel_inj[rule]
@@ -278,7 +279,7 @@ def main():
         ax.set_title(LABELS[rule], fontsize=9)
         style_axes(ax)
     ax = axes.flat[-1]
-    tsft_counts = pd.DataFrame({LABELS[r][:3].strip(): sel_noise[r]["tsft"].value_counts() for r in RULES}).fillna(0)
+    tsft_counts = pd.DataFrame({LABELS[r][:4].strip(): sel_noise[r]["tsft"].value_counts() for r in RULES}).fillna(0)
     long_share = {k: tsft_counts.loc[tsft_counts.index >= 150, k].sum() / n_noise for k in tsft_counts}
     ax.bar(range(len(long_share)), list(long_share.values()), color=COLORS[:len(long_share)], width=0.7)
     ax.set_xticks(range(len(long_share)), list(long_share.keys()))

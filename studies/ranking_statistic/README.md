@@ -84,3 +84,43 @@ heavy masses (0.76 vs 0.67).
   packs: the pack bootstrap intervals are wide when NMSE dominates.
 * R_a and the monotone curve are two families of thresholds; others (e.g. a
   length-aware NMSE) may rank differently.
+
+## D''': do not trust the NMSE of saturated short blocks (2026-10-20)
+
+**A duration cut does not work.** Block durations of the noise fits with
+NMSE < 1e-6 (225–3334 s, median 779 s) overlap those of the heavy signals
+with NMSE < 1e-4 (362–3358 s, median 822 s): heavy signals are only in band
+for the last minutes before merger. Removing the noise fits needs a cut near
+3400 s, which kills the heavy signals (efficiency 0.10); a 400 s cut changes
+nothing. A cut in steps (D'') instead kills light signals, whose blocks have
+7–14 steps at Tsft ≈ 260 s.
+
+**What separates them is not the shape.** A saturated block (drift of exactly
+one remapped bin per step, the largest Viterbi jump) is a straight line that
+any fit matches with NMSE ~ 0: 100% of the noise fits with NMSE < 1e-6, but
+also 88% of the light signals with NMSE < 1e-4. So D''' keeps these blocks but
+does not trust their NMSE: for blocks of ≤ 24 steps (the longest saturated
+noise block) with |drift per step − 1| < 1e-3 the NMSE is raised to at least
+1e-3, and nσ decides.
+
+| | B | A | D' | D''' |
+|---|---|---|---|---|
+| best R_a efficiency, FAR 3% (in-sample) | 0.488 | 0.507 | 0.492 | **0.517** |
+| linear, out-of-fold, FAR 3% (noise above) | 0.484 (4/141) | 0.504 (5) | 0.487 (5) | **0.515 (4)** |
+| linear, out-of-fold, FAR 1% (noise above) | 0.458 (3/141) | 0.496 (2) | 0.467 (2) | **0.515 (1)** |
+| paper, out-of-fold, FAR 3% (noise above) | 0.485 (5) | 0.508 (6) | 0.487 (**8**) | **0.518 (5)** |
+
+* D''' − B over the ranking scan: never significantly negative (−0.2 points at
+  a = 0, p = 0.45), +1.0 to +1.4 points at a = 0.2–0.75, **+2.9 to +4.6 points
+  for a ≥ 1** (McNemar p down to 1e-22); unlike D', it does not collapse when
+  NMSE dominates.
+* Out of fold (linear threshold, a chosen on the training folds): D''' vs B
+  +66/−11 (FAR 3%) and **+108/−5** (FAR 1%), heavy slice +52/−0 and +61/−0;
+  D''' vs A: 0.515 vs 0.504 (3%), 0.515 vs 0.496 (1%).
+* With D''' the paper polynomial also generalises (out-of-fold 0.518, 5/141),
+  since the degenerate noise fits no longer sit at small NMSE.
+
+Caveat: SAT_MAX_STEPS = 24 comes from the noise alone, but the floor 1e-3 was
+picked among two values (1e-3, 1e-2) on these injections; the three D'''
+parameters should be frozen now and checked on an independent injection set
+(e.g. the full campaign).

@@ -112,3 +112,19 @@ def test_per_tsft_candidates_matches_search(tables):
     assert len(rows) == len(products) and chosen["nsigma"] == pytest.approx(best["nsigma"])
     assert chosen["iso_status"] == "ok" and chosen["nmse"] == pytest.approx(best["nmse"])
     assert set(TSFT_LISTS["union"]) >= set(TSFT_LISTS["95"]) | set(TSFT_LISTS["paper"])
+
+
+def test_saturated_short_block_nmse_is_not_trusted():
+    from pbh_viterbi.tsft import tsft_lim
+
+    # At the long Tsft a 6-step block drifting one bin per step (mass with T_lim = Tsft): NMSE ~ 0 is
+    # uninformative and raised to the floor, so the short Tsft with a real fit (NMSE 1e-4) wins.
+    lo, hi = 1e-6, 1e-1  # solve T_lim(m) = LONG by bisection
+    for _ in range(200):
+        mid = np.sqrt(lo * hi)
+        lo, hi = (mid, hi) if tsft_lim(mid) > LONG else (lo, mid)
+    m_sat = np.sqrt(lo * hi)
+    rows = chunk(1, 0, 1, [(SHORT, 2.0, "ok", 1e-4, 0.1)]) + chunk(1, 0, 1, [(LONG, 2.5, "ok", 1e-9, m_sat)], steps=6)
+    df = prepare(pd.DataFrame(rows))
+    assert apply_rule("D_topk_nmse_95", df).loc[0, "tsft"] == LONG
+    assert apply_rule("D_topk_nmse_sat_95", df).loc[0, "tsft"] == SHORT
