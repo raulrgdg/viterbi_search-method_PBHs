@@ -23,6 +23,9 @@ Rules (RULES):
   D_isolated_95        largest nsigma among the Tsft whose isolation succeeds
   D_topk_nmse_95       among the 5 Tsft of largest nsigma whose isolation
                        succeeds, the one with the smallest NMSE
+  D_topk_nmse_len_95   as D', counting as isolated only blocks of at least
+                       MIN_BLOCK_STEPS SFT steps (noise tracks that jump one
+                       bin per step give NMSE ~ 1e-9 over 2-24 steps)
   E_mass_consistent_95 as D, keeping only Tsft <= 1.5 T_lim(fitted chirp mass)
                        (the margin covers the drift tolerated by the Tsft
                        lists, (Tsft/T_lim)^2 <= 1.03, and the error of the
@@ -46,6 +49,7 @@ TAIL_QUANTILE = 0.90
 TOP_K = 5
 T_LIM_MARGIN = 1.5
 P_FLOOR = 1e-300
+MIN_BLOCK_STEPS = 32
 
 
 def _tsft_set(name):
@@ -60,6 +64,9 @@ def prepare(per_tsft):
     for column in ("nsigma", "nmse", "mass"):
         df[column] = pd.to_numeric(df[column], errors="coerce")
     df["isolated"] = (df["iso_status"] == "ok") & np.isfinite(df["nmse"]) & (df["nmse"] > 0)
+    if {"block_start_s", "block_end_s"} <= set(df.columns):
+        df["block_steps"] = (pd.to_numeric(df["block_end_s"], errors="coerce")
+                             - pd.to_numeric(df["block_start_s"], errors="coerce")) / df["tsft"]
     return df
 
 
@@ -149,6 +156,10 @@ def apply_rule(name, df, noise=None):
     elif name == "D_topk_nmse_95":
         sel = _select(df, s95, -np.log10(df["nmse"].where(df["isolated"])),
                       df["isolated"] & _top_k_by_nsigma(df, s95, TOP_K))
+    elif name == "D_topk_nmse_len_95":
+        long_block = df["isolated"] & (df["block_steps"] >= MIN_BLOCK_STEPS)
+        df = df.assign(isolated=long_block)
+        sel = _select(df, s95, -np.log10(df["nmse"].where(long_block)), long_block & _top_k_by_nsigma(df, s95, TOP_K))
     elif name == "E_mass_consistent_95":
         sel = _select(df, s95, nsigma, df["isolated"] & mass_consistent(df))
     else:
@@ -177,6 +188,7 @@ RULES = (
     "C_min_p_tail_95",
     "D_isolated_95",
     "D_topk_nmse_95",
+    "D_topk_nmse_len_95",
     "E_mass_consistent_95",
 )
 

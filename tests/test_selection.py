@@ -11,10 +11,10 @@ from pbh_viterbi.search.selection import RULES, apply_rule, empirical_pvalues, p
 SHORT, LONG = 2.625, 293.25  # both in the 95 list; 2.625 also close to the paper's 2-3 s
 
 
-def chunk(pack, signal_id, injected, rows):
-    """Per-Tsft rows of one chunk: rows = [(tsft, nsigma, iso_status, nmse, mass), ...]."""
-    return [dict(pack=pack, signal_id=signal_id, injected=injected, tsft=t, nsigma=z, iso_status=s, nmse=e, mass=m)
-            for t, z, s, e, m in rows]
+def chunk(pack, signal_id, injected, rows, steps=100):
+    """Per-Tsft rows of one chunk: rows = [(tsft, nsigma, iso_status, nmse, mass), ...]; blocks of ``steps``."""
+    return [dict(pack=pack, signal_id=signal_id, injected=injected, tsft=t, nsigma=z, iso_status=s, nmse=e, mass=m,
+                 block_start_s=0.0, block_end_s=steps * t) for t, z, s, e, m in rows]
 
 
 @pytest.fixture
@@ -48,6 +48,14 @@ def test_mass_consistency_drops_untrackable_tsft():
     df = prepare(pd.DataFrame(chunk(1, 0, 1, [(SHORT, 1.0, "ok", 1e-3, 0.1), (LONG, 3.0, "ok", 1e-3, 0.1)])))
     assert apply_rule("D_isolated_95", df).loc[0, "tsft"] == LONG
     assert apply_rule("E_mass_consistent_95", df).loc[0, "tsft"] == SHORT
+
+
+def test_min_block_length_drops_degenerate_fit():
+    # Noise-like short block with a tiny NMSE at the long Tsft, real fit at the short one.
+    rows = chunk(1, 0, 1, [(SHORT, 2.0, "ok", 1e-4, 0.1)]) + chunk(1, 0, 1, [(LONG, 2.5, "ok", 1e-9, 1e-3)], steps=6)
+    df = prepare(pd.DataFrame(rows))
+    assert apply_rule("D_topk_nmse_95", df).loc[0, "tsft"] == LONG
+    assert apply_rule("D_topk_nmse_len_95", df).loc[0, "tsft"] == SHORT
 
 
 def test_pvalues_leave_own_pack_out(tables):

@@ -54,8 +54,8 @@ INJ_PARAMS = ["pack", "signal_id", "mchirp", "distance", "ra", "dec", "pol", "t_
 
 # Reference categorical palette (dataviz skill, light mode), fixed order = RULES order;
 # a marker per rule as second encoding so identity never relies on colour alone.
-COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6"]
-MARKERS = ["o", "s", "^", "v", "D", "P", "X"]
+COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#e34948", "#6250d6"]
+MARKERS = ["o", "s", "^", "v", "D", "P", "*", "X"]
 LABELS = {
     "A_max_nsigma_paper": "A  max nσ, 13 paper Tsft",
     "B_max_nsigma_95": "B  max nσ, 45 Tsft (v1.1)",
@@ -63,6 +63,7 @@ LABELS = {
     "C_min_p_tail_95": "C' min p-value + tail fit",
     "D_isolated_95": "D  max nσ among isolated",
     "D_topk_nmse_95": "D' top-5 nσ, min NMSE",
+    "D_topk_nmse_len_95": "D'' D' with blocks ≥ 32 steps",
     "E_mass_consistent_95": "E  D + Tsft ≤ 1.5 T_lim(M_fit)",
 }
 STYLE = {rule: dict(color=COLORS[i], marker=MARKERS[i], label=LABELS[rule]) for i, rule in enumerate(RULES)}
@@ -258,7 +259,7 @@ def main():
 
     # Selected Tsft of the injections against T_lim of the true mass
     mc_line = np.logspace(np.log10(MCHIRP_GRID.min()), np.log10(MCHIRP_GRID.max()), 200)
-    fig, axes = plt.subplots(2, 4, figsize=(15, 7))
+    fig, axes = plt.subplots(3, 3, figsize=(13, 11))
     tsft_all = TSFT_LISTS["union"]
     for ax, rule in zip(axes.flat, RULES):
         s = sel_inj[rule]
@@ -277,7 +278,7 @@ def main():
         ax.set_title(LABELS[rule], fontsize=9)
         style_axes(ax)
     ax = axes.flat[-1]
-    tsft_counts = pd.DataFrame({LABELS[r][:2].strip(): sel_noise[r]["tsft"].value_counts() for r in RULES}).fillna(0)
+    tsft_counts = pd.DataFrame({LABELS[r][:3].strip(): sel_noise[r]["tsft"].value_counts() for r in RULES}).fillna(0)
     long_share = {k: tsft_counts.loc[tsft_counts.index >= 150, k].sum() / n_noise for k in tsft_counts}
     ax.bar(range(len(long_share)), list(long_share.values()), color=COLORS[:len(long_share)], width=0.7)
     ax.set_xticks(range(len(long_share)), list(long_share.keys()))
@@ -286,7 +287,7 @@ def main():
     ax.set_ylabel("fraction of noise packs")
     style_axes(ax)
     axes[0, 0].legend(fontsize=7, frameon=False, loc="upper right")
-    for a in axes[1, :3]:
+    for a in axes[-1, :]:
         a.set_xlabel("injected chirp mass (M☉)")
     for a in axes[:, 0]:
         a.set_ylabel("selected Tsft (s)")
