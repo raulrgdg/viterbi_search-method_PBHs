@@ -7,6 +7,8 @@
 #   CAMPAIGN=all bash workflows/campaign/submit_condor.sh    # all 108 packs
 #   PACKS="1 2 3" TSFT_LIST=90 bash workflows/campaign/submit_condor.sh
 #   PBH_CONDA_ENV=vit bash workflows/campaign/submit_condor.sh  # other conda environment
+# MEMORY (default 5GB) is the memory request; SEARCH_ARGS (default --per-tsft-output) are extra
+# options of injected_search (the per-Tsft products allow re-analysing the Tsft selection offline).
 # Packs whose result file is already complete (200 rows) are skipped, so an
 # interrupted campaign can be resumed by running the same command again (after
 # removing the held or failed jobs). Once every job has finished, run
@@ -25,5 +27,6 @@ for pack in ${PACKS}; do
     fi
     condor_submit "pack=${pack}" "tsft_list=${TSFT_LIST:-95}" "sft_method=${SFT_METHOD:-fast}" \
         "conda_env=${PBH_CONDA_ENV:-pbh-viterbi}" "results_dir=${RESULTS_DIR}" \
+        "memory=${MEMORY:-5GB}" "search_args=${SEARCH_ARGS---per-tsft-output}" \
         workflows/condor/injected_search.sub | tail -1
 done

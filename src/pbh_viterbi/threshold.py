@@ -12,6 +12,12 @@ where basis(NMSE) is
 
 The paper threshold is produced by analysis/compute_threshold.py and stored as
 JSON in paper_data/calibration/far_threshold.json.
+
+[UNDER TEST] The linear threshold of the hybrid Tsft selection,
+R_a = nsigma - a log10(NMSE_eff) >= t, is the degree-1 case with fixed slope:
+coefficients [a, t] in log10(NMSE_eff) (analysis/compute_threshold_linear.py).
+Its JSON names the NMSE column to use, ``nmse_column`` = "nmse_eff";
+``nmse_values`` picks it from a result table.
 """
 
 import json
@@ -40,7 +46,16 @@ def load_threshold(path):
         "basis": report.get("basis", "nmse"),
         "log_center": float(report.get("log_center", 0.0)),
         "log_scale": float(report.get("log_scale", 1.0)),
+        "nmse_column": report.get("nmse_column", "nmse"),
     }
+
+
+def nmse_values(threshold, df):
+    """NMSE column of a result table that the threshold applies to (``nmse_eff`` for the linear threshold)."""
+    column = threshold.get("nmse_column", "nmse")
+    if column not in df:
+        raise ValueError(f"The threshold needs the column {column!r} (hybrid Tsft selection results)")
+    return df[column]
 
 
 def threshold_curve(threshold, nmse):

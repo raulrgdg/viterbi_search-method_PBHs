@@ -138,8 +138,9 @@ def main():
                                     signal_id=signal_id, inclination=INCLINATION, t_to_merger=t_to_merger)],
                         output)
             if per_tsft_output is not None:
-                append_rows(per_tsft_rows(args.pack, per_tsft_candidates(products, noise_means, noise_stds),
-                                          injected=True, signal_id=signal_id), per_tsft_output, PER_TSFT_FIELDNAMES)
+                rows = result.get("per_tsft") or per_tsft_candidates(products, noise_means, noise_stds)
+                append_rows(per_tsft_rows(args.pack, rows, injected=True, signal_id=signal_id), per_tsft_output,
+                            PER_TSFT_FIELDNAMES)
 
     finish_shard(name, args.n_jobs, args.job_id)
     if per_tsft_output is not None:

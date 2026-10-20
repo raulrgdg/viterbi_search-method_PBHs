@@ -4,7 +4,7 @@ import pandas as pd
 
 import _setup  # noqa: F401  (adds src/ to sys.path)
 from pbh_viterbi.paths import PAPER_DATA_DIR
-from pbh_viterbi.threshold import is_candidate, load_threshold
+from pbh_viterbi.threshold import is_candidate, load_threshold, nmse_values
 
 NOISE_CSV = PAPER_DATA_DIR / "search_results" / "noise_search_O3b_H1_108packs.csv"
 CAMPAIGN_CSV = PAPER_DATA_DIR / "search_results" / "injected_search_O3b_H1_90packs.csv"
@@ -18,6 +18,9 @@ PSD_CSV = PAPER_DATA_DIR / "snr" / "average_noise_psd_O3b_H1.csv"
 def load_campaign(path=CAMPAIGN_CSV, threshold_path=THRESHOLD_JSON):
     """Injected-search triggers with a ``recovered`` column from the FAR threshold."""
     df = pd.read_csv(path)
-    df["nmse"] = pd.to_numeric(df["nmse"], errors="coerce")
-    df["recovered"] = is_candidate(load_threshold(threshold_path), df["nmse"], df["nsigma"])
+    threshold = load_threshold(threshold_path)
+    for column in ("nmse", "nmse_eff"):
+        if column in df:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+    df["recovered"] = is_candidate(threshold, nmse_values(threshold, df), df["nsigma"])
     return df

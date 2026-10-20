@@ -31,6 +31,9 @@ FIELDNAMES = [
     "tsft",       # Tsft selected by nsigma (s)
     "injected",   # 1 for injected searches, 0 for noise
     "status",     # outcome of the candidate isolation
+    "ranking_stat",  # R_a = nsigma - a log10(nmse_eff) of the selected Tsft (hybrid selection); empty otherwise
+    "nmse_eff",   # NMSE used in R_a: saturated short blocks raised to SAT_NMSE_FLOOR (hybrid selection)
+    "selection",  # Tsft selection: "hybrid" or "max_nsigma"
 ]
 
 
@@ -92,6 +95,9 @@ def result_row(pack, search_result, injected, mchirp=None, distance=None, sky=No
         "tsft": search_result["tsft"],
         "injected": 1 if injected else 0,
         "status": search_result["status"],
+        "ranking_stat": search_result.get("ranking_stat"),
+        "nmse_eff": search_result.get("nmse_eff"),
+        "selection": search_result.get("selection"),
     }
     return {key: _fmt(value) for key, value in row.items()}
 

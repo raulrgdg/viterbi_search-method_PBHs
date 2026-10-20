@@ -34,6 +34,18 @@ command skips the complete packs. When every job has finished, run
 unmerged (two jobs finishing together on a shared filesystem can miss each
 other) and lists the incomplete packs.
 
+[UNDER TEST] With the hybrid Tsft selection the jobs request 5 GB and write
+the per-Tsft products (`MEMORY`, `SEARCH_ARGS` in `submit_condor.sh`); the
+noise search must be re-run with the same code, since the threshold is set on
+its triggers:
+
+```bash
+condor_submit conda_env=<env> results_dir=results search_args=--per-tsft-output memory=5GB \
+    workflows/condor/noise_search.sub                       # 141 packs, one job each
+PBH_CONDA_ENV=<env> bash workflows/campaign/submit_condor.sh # 90 packs x 20 jobs
+bash workflows/campaign/finalize.sh                          # after every job has finished
+```
+
 Each pack produces `results/search/search_results_injected_pack-<pack>.csv`
 (with the sky location, polarisation, inclination and time to merger of every
 injection). Merge them with

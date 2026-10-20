@@ -25,12 +25,19 @@ from pbh_viterbi.config import (
     NMSE_LEN_ALPHA,
     NMSE_NREF,
     POWER_THRESHOLD_K,
+    PROVISIONAL_RANKING_THRESHOLD,
     PROVISIONAL_THRESHOLD_INTERCEPT,
     PROVISIONAL_THRESHOLD_SLOPE,
+    RANKING_NMSE_WEIGHT,
+    SAT_MAX_STEPS,
+    SAT_NMSE_FLOOR,
+    SAT_RATE_TOL,
     TOP_N_BLOCKS,
+    TSFT_SELECTION,
 )
 from pbh_viterbi.search.fitting import expand_block, fit_candidate_blocks, fit_significant_blocks
 from pbh_viterbi.search.power import as_track, screen_windows, select_best_tsft, total_track_power, tsft_key
+from pbh_viterbi.search.ranking import effective_nmse, linear_stat
 
 log = logging.getLogger(__name__)
 
@@ -39,6 +46,8 @@ STATUS_NO_POWER_WINDOW = "failed_second_power_check"
 STATUS_NO_FIT = "failed_third_fit_check"
 STATUS_NO_OPTIMAL_BLOCK = "failed_optimal_block_selection"
 STATUS_NO_EXPANSION = "failed_block_expansion"
+STATUS_NO_ISOLATED = "no_isolated_tsft"  # hybrid selection: no Tsft gives an isolated candidate
+STATUS_BELOW_RANKING = "rejected_ranking_threshold"  # hybrid selection: R_a below the provisional threshold
 STATUS_BELOW_THRESHOLD = "rejected_linear_threshold"
 STATUS_CANDIDATE = "candidate_found"
 
@@ -99,14 +108,34 @@ def isolate_candidate(track_index, track_freq, power, tsft, accepted_windows=Non
     return None, top_windows, optimal_block, expanded
 
 
-def search_candidate(tsft_results, noise_means, noise_stds):
+def search_candidate(tsft_results, noise_means, noise_stds, method=None):
     """Rank one data chunk given its per-Tsft Viterbi products.
 
     ``tsft_results`` is a list of dicts as returned by
-    ``pbh_viterbi.sft.maps.track_product``. Returns a dict with ``candidate``,
-    ``nmse``, ``nsigma``, ``mass`` (chirp-mass estimate, Msun), ``tsft`` and
-    ``status``; ``nmse``/``mass`` are None when the isolation fails.
+    ``pbh_viterbi.sft.maps.track_product``. ``method`` (default
+    config.TSFT_SELECTION) chooses the Tsft:
+
+      "hybrid"      [UNDER TEST] isolate a candidate on every Tsft and keep the
+                    one of largest R_a = nsigma - a log10(NMSE_eff)
+      "max_nsigma"  the Tsft of largest nsigma, then isolate (v1.0, v1.1)
+
+    Returns a dict with ``candidate``, ``nmse``, ``nsigma``, ``mass``
+    (chirp-mass estimate, Msun), ``tsft``, ``status``, ``ranking_stat`` (R_a),
+    ``nmse_eff`` and ``selection``; ``nmse``/``mass`` are None when the
+    isolation fails. The hybrid method also returns ``per_tsft``, the rows of
+    per_tsft_candidates (one per Tsft).
     """
+    method = method or TSFT_SELECTION
+    if method == "hybrid":
+        return _search_hybrid(tsft_results, noise_means, noise_stds)
+    if method != "max_nsigma":
+        raise ValueError(f"Unknown Tsft selection {method!r}; expected 'hybrid' or 'max_nsigma'")
+    return {**_search_max_nsigma(tsft_results, noise_means, noise_stds), "ranking_stat": None, "nmse_eff": None,
+            "selection": "max_nsigma"}
+
+
+def _search_max_nsigma(tsft_results, noise_means, noise_stds):
+    """v1.0/v1.1 search: Tsft of largest nsigma, isolation on its track, provisional linear threshold."""
     opt_tsft, opt_nsigma, _ = select_best_tsft(tsft_results, noise_means, noise_stds)
     selected = next((r for r in tsft_results if tsft_key(r["tsft"]) == opt_tsft), None)
     if selected is None:
@@ -134,10 +163,41 @@ def search_candidate(tsft_results, noise_means, noise_stds):
 
 
 # --------------------------------------------------------------------------
-# [UNDER TEST] Per-Tsft products for the Tsft-selection study
-# (studies/tsft_selection). Not used by the default search: search_candidate
-# above still selects the Tsft of largest nsigma.
+# [UNDER TEST] Hybrid Tsft selection (studies/tsft_selection,
+# studies/ranking_statistic) and the per-Tsft products it is built on.
 # --------------------------------------------------------------------------
+
+def _search_hybrid(tsft_results, noise_means, noise_stds):
+    """Isolate on every Tsft; keep the isolated Tsft of largest R_a = nsigma - a log10(NMSE_eff).
+
+    NMSE_eff is the NMSE with saturated short blocks raised to SAT_NMSE_FLOOR
+    (search.ranking.effective_nmse). If no Tsft gives an isolated candidate,
+    the Tsft of largest nsigma is reported with status ``no_isolated_tsft``.
+    """
+    rows = per_tsft_candidates(tsft_results, noise_means, noise_stds)
+    best, best_stat = None, -np.inf
+    for row in rows:
+        if row["iso_status"] != "ok" or not (row["nmse"] is not None and np.isfinite(row["nmse"]) and row["nmse"] > 0):
+            continue
+        row["nmse_eff"] = float(effective_nmse(row["nmse"], row["mass"], row["block_start_s"], row["block_end_s"],
+                                               row["tsft"], SAT_MAX_STEPS, SAT_RATE_TOL, SAT_NMSE_FLOOR))
+        stat = float(linear_stat([row["nsigma"]], [row["nmse_eff"]], RANKING_NMSE_WEIGHT)[0])
+        if stat > best_stat:
+            best, best_stat = row, stat
+    base = {"selection": "hybrid", "per_tsft": rows}
+    if best is None:
+        loudest = max(rows, key=lambda r: r["nsigma"])
+        log.info("No isolated candidate on any Tsft (largest nsigma %.4f at tsft=%g s)", loudest["nsigma"],
+                 loudest["tsft"])
+        return {**base, "candidate": False, "nmse": None, "nsigma": loudest["nsigma"], "mass": None,
+                "tsft": loudest["tsft"], "status": STATUS_NO_ISOLATED, "ranking_stat": None, "nmse_eff": None}
+    passed = best_stat >= PROVISIONAL_RANKING_THRESHOLD
+    status = STATUS_CANDIDATE if passed else STATUS_BELOW_RANKING
+    log.info("Selected tsft=%g s: nsigma=%.4f nmse=%.4e (eff %.4e) mass=%.4e R_a=%.3f -> %s", best["tsft"],
+             best["nsigma"], best["nmse"], best["nmse_eff"], best["mass"], best_stat, status)
+    return {**base, "candidate": bool(passed), "nmse": best["nmse"], "nsigma": best["nsigma"], "mass": best["mass"],
+            "tsft": best["tsft"], "status": status, "ranking_stat": best_stat, "nmse_eff": best["nmse_eff"]}
+
 
 def per_tsft_candidates(tsft_results, noise_means, noise_stds):
     """Isolate a candidate on the track of every Tsft, not only the selected one.

@@ -46,9 +46,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from pbh_viterbi import config
 from pbh_viterbi.config import TSFT_LISTS
 from pbh_viterbi.search.power import tsft_key
-from pbh_viterbi.search.ranking import drift_bins
+from pbh_viterbi.search.ranking import effective_nmse
 from pbh_viterbi.tsft import tsft_lim
 
 CHUNK_KEYS = ["injected", "pack", "signal_id"]
@@ -57,9 +58,10 @@ TOP_K = 5
 T_LIM_MARGIN = 1.5
 P_FLOOR = 1e-300
 MIN_BLOCK_STEPS = 32
-SAT_MAX_STEPS = 24  # longest saturated noise block with NMSE < 1e-6 (141 packs, 79 Tsft)
-SAT_RATE_TOL = 1e-3  # |drift per step - 1 bin| below which a block is saturated
-SAT_NMSE_FLOOR = 1e-3
+# D''' parameters: the search values (config.py); module names so a study can vary them.
+SAT_MAX_STEPS = config.SAT_MAX_STEPS
+SAT_RATE_TOL = config.SAT_RATE_TOL
+SAT_NMSE_FLOOR = config.SAT_NMSE_FLOOR
 
 
 def _tsft_set(name):
@@ -137,10 +139,9 @@ def saturation_adjusted_nmse(df):
     largest Viterbi jump) is a straight line that noise and signals alike fit
     with NMSE ~ 0, so its NMSE carries no information.
     """
-    steps = df["block_steps"]
-    rate = drift_bins(df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"]) / steps
-    saturated = df["isolated"] & (steps <= SAT_MAX_STEPS) & (np.abs(rate - 1.0) < SAT_RATE_TOL)
-    return df["nmse"].where(~saturated, np.maximum(df["nmse"], SAT_NMSE_FLOOR))
+    eff = effective_nmse(df["nmse"], df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"],
+                         SAT_MAX_STEPS, SAT_RATE_TOL, SAT_NMSE_FLOOR)
+    return df["nmse"].where(~df["isolated"], pd.Series(eff, index=df.index))
 
 
 def select_by_ranking(df, a, tsft_list="95"):

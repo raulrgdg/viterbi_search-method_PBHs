@@ -12,22 +12,26 @@ PACKS="${PACKS:-$(python -m pbh_viterbi.campaign "${CAMPAIGN:-paper}")}"
 python - "${N_JOBS:-20}" ${PACKS} <<'PY'
 import logging, sys
 from pbh_viterbi.paths import SEARCH_RESULTS_DIR
-from pbh_viterbi.results import csv_name, merge_shards_if_ready, shard_path
+from pbh_viterbi.results import (FIELDNAMES, PER_TSFT_FIELDNAMES, csv_name, merge_shards_if_ready,
+                                  per_tsft_csv_name, shard_path)
 
 logging.basicConfig(level=logging.WARNING)
 n_jobs, packs = int(sys.argv[1]), [int(p) for p in sys.argv[2:]]
-complete, pending = 0, []
+complete, pending, per_tsft_packs = 0, [], 0
 for pack in packs:
-    name = csv_name(injected=True, pack=pack)
-    if any(shard_path(name, n_jobs, j).exists() for j in range(n_jobs)):
-        merge_shards_if_ready(name, n_jobs)
-    output = SEARCH_RESULTS_DIR / name
+    # main result file and, if the jobs wrote it (--per-tsft-output), the per-Tsft file
+    for name, fields in ((csv_name(injected=True, pack=pack), FIELDNAMES),
+                         (per_tsft_csv_name(injected=True, pack=pack), PER_TSFT_FIELDNAMES)):
+        if any(shard_path(name, n_jobs, j).exists() for j in range(n_jobs)):
+            merge_shards_if_ready(name, n_jobs, fields)
+    output = SEARCH_RESULTS_DIR / csv_name(injected=True, pack=pack)
     rows = sum(1 for _ in output.open()) - 1 if output.exists() else 0
+    per_tsft_packs += (SEARCH_RESULTS_DIR / per_tsft_csv_name(injected=True, pack=pack)).exists()
     if rows >= 200:
         complete += 1
     else:
         pending.append(f"{pack}({rows})")
-print(f"{complete}/{len(packs)} packs complete")
+print(f"{complete}/{len(packs)} packs complete; per-Tsft files for {per_tsft_packs} packs")
 if pending:
     print("incomplete (rows):", *pending)
 PY

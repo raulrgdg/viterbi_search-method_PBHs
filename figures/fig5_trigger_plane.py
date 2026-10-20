@@ -30,8 +30,11 @@ Y_LIMITS = (-5, 1e4)
 CURVE_MAX_LOG_NMSE = 1.0
 
 
-def valid_triggers(path):
+def valid_triggers(path, nmse_column="nmse"):
+    """Triggers with a valid NMSE and nsigma; ``nmse_column`` (nmse_eff for the linear threshold) becomes nmse."""
     df = pd.read_csv(path)
+    if nmse_column != "nmse":
+        df["nmse"] = df[nmse_column]
     for column in ("nmse", "nsigma"):
         df[column] = pd.to_numeric(df[column], errors="coerce")
     df = df.dropna(subset=["nmse", "nsigma"])
@@ -55,8 +58,9 @@ def main():
     parser.add_argument("--output", type=Path, default=PLOTS_DIR / "fig5_trigger_plane.png")
     args = parser.parse_args()
 
-    noise = valid_triggers(args.noise_csv)
-    signal = valid_triggers(args.signal_csv).dropna(subset=["mchirp", "distance", "pack"])
+    threshold = load_threshold(args.threshold)
+    noise = valid_triggers(args.noise_csv, threshold["nmse_column"])
+    signal = valid_triggers(args.signal_csv, threshold["nmse_column"]).dropna(subset=["mchirp", "distance", "pack"])
     # Drawing order of the published figure (overlapping semi-transparent points).
     signal = signal.sort_values(["mchirp", "distance", "pack"]).reset_index(drop=True)
     snr = attach_snr(signal, args.snr_csv)
@@ -72,10 +76,10 @@ def main():
     # The curve is drawn from the smallest fitted NMSE (<= 10) up to NMSE = 10.
     log_nmse = np.log10(np.concatenate([signal["nmse"], noise["nmse"]]))
     x_line = np.linspace(log_nmse[log_nmse <= CURVE_MAX_LOG_NMSE].min(), CURVE_MAX_LOG_NMSE, 600)
-    threshold_line, = ax.plot(10 ** x_line, threshold_curve(load_threshold(args.threshold), 10 ** x_line),
+    threshold_line, = ax.plot(10 ** x_line, threshold_curve(threshold, 10 ** x_line),
                               color="black", linewidth=1.5, label="Threshold\n" + r"$\mathrm{FAR} \,  3\%$")
 
-    ax.set_xlabel(r"$\mathrm{NMSE}$")
+    ax.set_xlabel(r"$\mathrm{NMSE}_\mathrm{eff}$" if threshold["nmse_column"] == "nmse_eff" else r"$\mathrm{NMSE}$")
     ax.set_xscale("log")
     ax.set_yscale("symlog", linthresh=1)
     ax.set_ylabel(r"$n_{\sigma}$")

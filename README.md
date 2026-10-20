@@ -119,7 +119,19 @@ bash workflows/campaign/submit_condor.sh       # or workflows/campaign/submit_sl
 ```
 
 **Analysis.** Merge the injection results, compute the SNR of every injection,
-fit the false-alarm threshold and compute the distance reach:
+set the false-alarm threshold and compute the distance reach.
+[UNDER TEST] With the hybrid Tsft selection (default on branch
+`tsft-selection`) the threshold is linear in R_a = nσ − a log10(NMSE_eff) and
+is set on the noise triggers alone:
+
+```bash
+python analysis/compute_threshold_linear.py --far-limit <FAR> \
+    --noise-csv results/search/search_results_noise.csv \
+    --signal-csv results/search/injected_campaign.csv --output results/search/threshold.json
+```
+
+The paper threshold (polynomial in log10 NMSE, fitted on noise and injections)
+is still produced by `analysis/compute_threshold.py`:
 
 ```bash
 python analysis/merge_results.py results/search results/search/injected_campaign.csv \

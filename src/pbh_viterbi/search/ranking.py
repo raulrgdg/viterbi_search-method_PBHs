@@ -48,6 +48,21 @@ def drift_bins(mass, block_start_s, block_end_s, tsft):
     return np.abs(slope_of_mass(np.asarray(mass, float))) * duration / bin_width
 
 
+def saturated_block(mass, block_start_s, block_end_s, tsft, max_steps, rate_tol):
+    """Blocks of at most ``max_steps`` SFT steps whose fit drifts one remapped bin per step."""
+    steps = block_steps(block_start_s, block_end_s, tsft)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rate = drift_bins(mass, block_start_s, block_end_s, tsft) / steps
+    return (steps <= max_steps) & (np.abs(rate - 1.0) < rate_tol)
+
+
+def effective_nmse(nmse, mass, block_start_s, block_end_s, tsft, max_steps, rate_tol, floor):
+    """NMSE with saturated short blocks raised to at least ``floor`` (their NMSE carries no information)."""
+    nmse = np.asarray(nmse, float)
+    sat = saturated_block(mass, block_start_s, block_end_s, tsft, max_steps, rate_tol)
+    return np.where(sat, np.maximum(nmse, floor), nmse)
+
+
 def linear_stat(nsigma, nmse, a):
     """R_a = nsigma - a log10(NMSE); -inf where there is no valid NMSE."""
     nsigma, nmse = np.asarray(nsigma, float), np.asarray(nmse, float)

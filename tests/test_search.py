@@ -34,7 +34,8 @@ def background():
 
 @pytest.mark.parametrize("kwargs,status,nmse,nsigma,mass", CASES)
 def test_search_regression(background, kwargs, status, nmse, nsigma, mass):
-    result = search_candidate([synthetic_products(**kwargs)], *background)
+    """v1.0/v1.1 search (max-nsigma selection) is unchanged."""
+    result = search_candidate([synthetic_products(**kwargs)], *background, method="max_nsigma")
     assert result["status"] == status
     assert result["nmse"] == pytest.approx(nmse, rel=1e-12)
     assert result["nsigma"] == pytest.approx(nsigma, rel=1e-12)
@@ -43,7 +44,27 @@ def test_search_regression(background, kwargs, status, nmse, nsigma, mass):
 
 def test_best_tsft_is_selected(background):
     products = [synthetic_products(amplitude=0.0, seed=4), synthetic_products(amplitude=20.0)]
-    assert search_candidate(products, *background)["tsft"] == 63
+    assert search_candidate(products, *background, method="max_nsigma")["tsft"] == 63
+
+
+@pytest.mark.parametrize("kwargs,status,nmse,nsigma,mass", CASES)
+def test_hybrid_matches_isolation_on_a_single_tsft(background, kwargs, status, nmse, nsigma, mass):
+    """[UNDER TEST] With one Tsft the hybrid selection isolates the same candidate as v1.1."""
+    from pbh_viterbi.config import RANKING_NMSE_WEIGHT
+
+    result = search_candidate([synthetic_products(**kwargs)], *background, method="hybrid")
+    assert result["selection"] == "hybrid" and len(result["per_tsft"]) == 1
+    assert result["nsigma"] == pytest.approx(nsigma, rel=1e-12)
+    assert result["nmse"] == pytest.approx(nmse, rel=1e-12) and result["mass"] == pytest.approx(mass, rel=1e-12)
+    assert result["ranking_stat"] == pytest.approx(nsigma - RANKING_NMSE_WEIGHT * np.log10(result["nmse_eff"]))
+    assert result["status"] in ("candidate_found", "rejected_ranking_threshold")
+
+
+def test_hybrid_prefers_the_well_fitted_tsft(background):
+    """[UNDER TEST] A loud but unfitted map loses against a weaker clean inspiral."""
+    products = [synthetic_products(amplitude=0.0, seed=4), synthetic_products(amplitude=20.0, tsft=88)]
+    result = search_candidate(products, *background, method="hybrid")
+    assert result["tsft"] == 88 and result["selection"] == "hybrid" and len(result["per_tsft"]) == 2
 
 
 def test_fit_recovers_chirp_mass():

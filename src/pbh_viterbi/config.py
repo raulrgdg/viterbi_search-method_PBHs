@@ -84,11 +84,35 @@ FIT_MASS_SAMPLES = 20000
 NMSE_NREF = 64
 NMSE_LEN_ALPHA = 1.0
 
-# Provisional linear decision line applied inside the search (status column).
-# The paper results use the polynomial FAR = 3% threshold computed afterwards
-# with analysis/compute_threshold.py.
+# Provisional linear decision line of the max-nsigma selection (v1.0/v1.1,
+# status column). The paper results use the polynomial FAR = 3% threshold
+# computed afterwards with analysis/compute_threshold.py.
 PROVISIONAL_THRESHOLD_SLOPE = 255.5
 PROVISIONAL_THRESHOLD_INTERCEPT = -0.671286
+
+# --------------------------------------------------------------------------
+# [UNDER TEST] Tsft selection and ranking statistic (studies/tsft_selection,
+# studies/ranking_statistic)
+# --------------------------------------------------------------------------
+# "hybrid": isolate a candidate on every Tsft and keep the one of largest
+#   R_a = nsigma - a log10(NMSE_eff), the statistic of the detection threshold.
+# "max_nsigma": the Tsft of largest nsigma, then isolate (v1.0 and v1.1).
+TSFT_SELECTION = "hybrid"
+# a of R_a. Chosen on the calibration set of the Tsft-selection study (141 noise
+# packs, 1800 injections): largest efficiency at FAR 3% and 1%, the same value
+# in every cross-validation fold; the efficiency changes by < 1% for a in [2, 10].
+RANKING_NMSE_WEIGHT = 5.0
+# NMSE_eff: a saturated short block (a Viterbi track jumping one remapped bin per
+# step, the largest allowed jump) is a straight line that noise and signals alike
+# fit with NMSE ~ 0, so its NMSE is raised to SAT_NMSE_FLOOR. All three values come
+# from the noise background alone (141 packs x 79 Tsft):
+SAT_MAX_STEPS = 24  # longest block among the noise fits with NMSE < 1e-6
+SAT_RATE_TOL = 1e-3  # |drift per step - 1 bin|; slope resolution of the mass grid is 7.7e-4
+SAT_NMSE_FLOOR = 6.6e-4  # 0.1% quantile of the NMSE of the non-saturated noise fits
+# Provisional R_a threshold for the candidate/status columns: FAR 3% of the 141
+# noise packs of the study. The final threshold comes from the noise search of the
+# campaign (analysis/compute_threshold_linear.py).
+PROVISIONAL_RANKING_THRESHOLD = 17.3
 
 # --------------------------------------------------------------------------
 # Injected population (Table I)
