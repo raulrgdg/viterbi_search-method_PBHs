@@ -97,7 +97,7 @@ def main():
         ax.set_ylim(0, 1)
         ax.set_xlabel("injected chirp mass (M☉)")
         ax.set_title(f"FAR {far:.0%} (out of fold, linear threshold on R_a = nσ − a log10 NMSE)")
-        ax.legend(frameon=False, fontsize=7.5, loc="lower right")
+        ax.legend(frameon=False, fontsize=7.5, loc="upper center", bbox_to_anchor=(0.5, -0.16))
         style_axes(ax)
     axes[0].set_ylabel("detection efficiency (68% CL)")
     fig.suptitle("Choosing the Tsft by NMSE instead of nσ (141 noise packs, 1800 injections)", x=0.01, ha="left")
