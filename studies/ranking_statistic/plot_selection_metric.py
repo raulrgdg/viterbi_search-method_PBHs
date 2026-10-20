@@ -9,6 +9,9 @@ Three ways of choosing the Tsft of a chunk among the 45 of list 95:
   NMSE, D'''      the same, but the NMSE of saturated short blocks (<= 24 steps
                   drifting one remapped bin per step) is raised to >= 1e-3,
                   since noise fits such straight segments with NMSE ~ 0
+  R_a (hybrid)    the isolated Tsft of largest R_a = nsigma - a log10 NMSE
+                  (D''' NMSE), with the same a as the threshold: a single
+                  parameter, chosen on the training folds
 
 The detection statistic is the same for all: R_a = nsigma - a log10(NMSE) of
 the chosen Tsft, with the linear threshold of studies/ranking_statistic
@@ -36,15 +39,40 @@ sys.path.insert(0, str(ROOT / "analysis"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pbh_viterbi.search.selection as selection  # noqa: E402
-from analyse import INJ_FOLDS, N_FOLDS, cv_job, save, style_axes  # noqa: E402
-from pbh_viterbi.search.ranking import clopper_pearson, pack_folds  # noqa: E402
+from analyse import A_GRID, INJ_FOLDS, N_FOLDS, cv_job, save, style_axes  # noqa: E402
+from pbh_viterbi.search.ranking import clopper_pearson, pack_folds, threshold_for_far  # noqa: E402
 
 FARS = (0.03, 0.01)
 METRICS = {  # label: (rule, TOP_K, colour, marker, line style)
     "Tsft by nσ (B, v1.1)": ("B_max_nsigma_95", selection.TOP_K, "#eb6834", "s", "-"),
     "Tsft by NMSE (D''', K = 45)": ("D_topk_nmse_sat_95", 45, "#6250d6", "X", "-"),
     "Tsft by raw NMSE (no saturated-block fix)": ("D_topk_nmse_95", 45, "#6b6a64", "o", "--"),
+    "Tsft by R_a = nσ − a log10 NMSE (hybrid)": ("hybrid", None, "#008300", "P", "-"),
 }
+HYBRID = "Tsft by R_a = nσ − a log10 NMSE (hybrid)"
+
+
+def hybrid_cv(noise_tab, inj_tab, params, folds, far):
+    """Out-of-fold detections of the hybrid rule: a (selection and threshold) chosen on the training folds."""
+    sn, si = {}, {}
+    for a in A_GRID:
+        n = selection.select_by_ranking(noise_tab, a).sort_values("pack").reset_index(drop=True)
+        i = (selection.select_by_ranking(inj_tab, a).drop(columns=["mchirp", "distance"], errors="ignore")
+             .merge(params, on=["pack", "signal_id"]).sort_values(["pack", "signal_id"]).reset_index(drop=True))
+        sn[a], si[a] = n["stat"].to_numpy(), i["stat"].to_numpy()
+    inj = i[["pack", "signal_id", "mchirp", "distance"]].copy()
+    n_fold = n["pack"].map(folds).to_numpy()
+    i_fold = inj["pack"].map(INJ_FOLDS).to_numpy()
+    det, false, chosen = np.zeros(len(inj), bool), 0, []
+    for fold in range(N_FOLDS):
+        trn, tst, tri, tsi = n_fold != fold, n_fold == fold, i_fold != fold, i_fold == fold
+        max_false = int(np.floor(far * trn.sum() + 1e-9))
+        best = max(A_GRID, key=lambda a: np.mean(si[a][tri] > threshold_for_far(sn[a][trn], max_false)))
+        thr = threshold_for_far(sn[best][trn], max_false)
+        det[tsi] = si[best][tsi] > thr
+        false += int(np.sum(sn[best][tst] > thr))
+        chosen.append(best)
+    return inj.assign(det=det), false, len(n), chosen
 SLICES = {r"light ($\mathcal{M} \leq 1.6\times10^{-3}$ M☉)": (0, 200), "intermediate": (200, 400), r"heavy ($\mathcal{M} \geq 1.8\times10^{-2}$ M☉)": (400, 600)}
 INK, MUTED = "#1f1f1e", "#6b6a64"
 
@@ -65,6 +93,14 @@ def main():
 
     results, rows = {}, []
     for label, (rule, top_k, *_style) in METRICS.items():
+        if rule == "hybrid":
+            for far in FARS:
+                det, false, n_noise, chosen = hybrid_cv(noise_tab, inj_tab, params, folds, far)
+                print(f"hybrid FAR {far:.0%}: a chosen per fold {chosen}")
+                results[(label, far)] = (det, false, n_noise)
+                rows.append(dict(metric=label, far=far, recovered=int(det["det"].sum()), injections=len(det),
+                                 efficiency=det["det"].mean(), false_positives=false, noise=n_noise))
+            continue
         selection.TOP_K = top_k
         n = selection.apply_rule(rule, noise_tab, noise_tab).sort_values("pack").reset_index(drop=True)
         i = (selection.apply_rule(rule, inj_tab, noise_tab).drop(columns=["mchirp", "distance"], errors="ignore")

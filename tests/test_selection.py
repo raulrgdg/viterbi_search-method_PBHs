@@ -128,3 +128,16 @@ def test_saturated_short_block_nmse_is_not_trusted():
     df = prepare(pd.DataFrame(rows))
     assert apply_rule("D_topk_nmse_95", df).loc[0, "tsft"] == LONG
     assert apply_rule("D_topk_nmse_sat_95", df).loc[0, "tsft"] == SHORT
+
+
+def test_hybrid_selection_interpolates_between_nsigma_and_nmse():
+    from pbh_viterbi.search.selection import select_by_ranking
+
+    # Loud but poorly fitted Tsft vs weaker, well fitted one; a third Tsft is not isolated.
+    rows = chunk(1, 0, 1, [(SHORT, 8.0, "ok", 1e-1, 0.1), (LONG, 3.0, "ok", 1e-6, 1e-4),
+                           (4.25, 20.0, "failed_third_fit_check", None, None)])
+    df = prepare(pd.DataFrame(rows))
+    assert select_by_ranking(df, 0.0).loc[0, "tsft"] == SHORT  # largest nsigma among isolated
+    assert select_by_ranking(df, np.inf).loc[0, "tsft"] == LONG  # smallest NMSE
+    sel = select_by_ranking(df, 2.0)
+    assert sel.loc[0, "tsft"] == LONG and sel.loc[0, "stat"] == pytest.approx(3.0 + 12.0)

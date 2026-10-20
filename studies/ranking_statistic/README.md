@@ -124,3 +124,28 @@ Caveat: SAT_MAX_STEPS = 24 comes from the noise alone, but the floor 1e-3 was
 picked among two values (1e-3, 1e-2) on these injections; the three D'''
 parameters should be frozen now and checked on an independent injection set
 (e.g. the full campaign).
+
+## Tsft chosen by nσ, by NMSE, or by the ranking statistic (hybrid)
+
+`plot_selection_metric.py` → `fig_selection_metric_vs_mass`,
+`fig_selection_metric_vs_distance`, `selection_metric.csv`. All out of fold,
+linear threshold on R_a = nσ − a log10 NMSE.
+
+The hybrid chooses, per chunk, the isolated Tsft of largest R_a (NMSE with the
+D''' correction), with the **same a as the threshold**, so it adds no
+parameter: a = 0 is "largest nσ among isolated Tsft", a → ∞ is "smallest
+NMSE" (D''' with K = 45). a is chosen on the training folds (5, 5, 5 at FAR 3%;
+5, 3, 5 at FAR 1%).
+
+| Tsft chosen by | FAR 3%: recovered (noise above) | FAR 1% | light 3% / 1% | intermediate | heavy |
+|---|---|---|---|---|---|
+| largest nσ (B) | 48.4% (4/141) | 45.8% (3/141) | 18.5 / 17.8% | 59.7 / 53.8% | 67.2 / 65.7% |
+| smallest NMSE (D''', K = 45) | 57.9% (5/141) | 56.2% (2/141) | 16.5 / 13.5% | 68.7 / 66.7% | 88.7 / 88.5% |
+| smallest raw NMSE | 43.3% (4/141) | 40.1% (2/141) | 13.0 / 12.2% | 40.0 / 37.5% | 76.8 / 70.5% |
+| **largest R_a (hybrid)** | **59.4% (5/141)** | **57.0% (2/141)** | 18.2 / 16.5% | 68.5 / 66.0% | **91.7 / 88.5%** |
+
+The hybrid recovers the light masses to the level of B at FAR 3% (18.2 vs
+18.5%) and most of them at 1% (16.5 vs 17.8%), keeps the gain of the NMSE
+choice at intermediate and heavy masses, and has the best total. Nearby light
+signals (0.1–0.56 kpc) are still recovered at 87% (FAR 3%) and 83% (1%)
+against ~95% for B.

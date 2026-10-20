@@ -130,6 +130,41 @@ def _top_k_by_nsigma(df, tsft_set, k):
     return df.index.isin(rank[rank <= k].index)
 
 
+def saturation_adjusted_nmse(df):
+    """NMSE with the D''' correction: saturated short blocks get NMSE >= SAT_NMSE_FLOOR.
+
+    A block of <= SAT_MAX_STEPS steps drifting one remapped bin per step (the
+    largest Viterbi jump) is a straight line that noise and signals alike fit
+    with NMSE ~ 0, so its NMSE carries no information.
+    """
+    steps = df["block_steps"]
+    rate = drift_bins(df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"]) / steps
+    saturated = df["isolated"] & (steps <= SAT_MAX_STEPS) & (np.abs(rate - 1.0) < SAT_RATE_TOL)
+    return df["nmse"].where(~saturated, np.maximum(df["nmse"], SAT_NMSE_FLOOR))
+
+
+def select_by_ranking(df, a, tsft_list="95"):
+    """[UNDER TEST] Hybrid rule: per chunk, the isolated Tsft of largest R_a = nsigma - a log10(NMSE).
+
+    The Tsft is chosen with the same statistic the detection threshold uses
+    (search.ranking.linear_stat), NMSE with the D''' correction; a = 0 picks the
+    largest nsigma among isolated Tsft, a -> inf the smallest NMSE (D''' with
+    K = all). Returns one row per chunk with ``stat`` = that R_a (-inf when no
+    Tsft is isolated).
+    """
+    nmse = saturation_adjusted_nmse(df)
+    ok = df["isolated"] & df["tsft"].isin(_tsft_set(tsft_list))
+    if np.isinf(a):
+        score = -np.log10(nmse.where(ok))
+    else:
+        score = df["nsigma"].where(ok) - a * np.log10(nmse.where(ok))
+    sel = _select(df.assign(nmse=nmse), _tsft_set(tsft_list), score, ok).copy()
+    sel["stat"] = score[sel.index]
+    out = df[CHUNK_KEYS].drop_duplicates().merge(sel, on=CHUNK_KEYS, how="left")
+    out["stat"] = out["stat"].fillna(-np.inf)
+    return out.reset_index(drop=True)
+
+
 def mass_consistent(df):
     """Tsft no longer than T_LIM_MARGIN times the tracking limit T_lim of the fitted chirp mass."""
     mass = df["mass"].to_numpy(float)
@@ -171,10 +206,7 @@ def apply_rule(name, df, noise=None):
         df = df.assign(isolated=long_block)
         sel = _select(df, s95, -np.log10(df["nmse"].where(long_block)), long_block & _top_k_by_nsigma(df, s95, TOP_K))
     elif name == "D_topk_nmse_sat_95":
-        steps = df["block_steps"]
-        rate = drift_bins(df["mass"], df["block_start_s"], df["block_end_s"], df["tsft"]) / steps
-        saturated = df["isolated"] & (steps <= SAT_MAX_STEPS) & (np.abs(rate - 1.0) < SAT_RATE_TOL)
-        df = df.assign(nmse=df["nmse"].where(~saturated, np.maximum(df["nmse"], SAT_NMSE_FLOOR)))
+        df = df.assign(nmse=saturation_adjusted_nmse(df))
         sel = _select(df, s95, -np.log10(df["nmse"].where(df["isolated"])),
                       df["isolated"] & _top_k_by_nsigma(df, s95, TOP_K))
     elif name == "E_mass_consistent_95":
