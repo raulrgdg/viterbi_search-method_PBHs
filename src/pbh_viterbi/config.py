@@ -98,10 +98,11 @@ PROVISIONAL_THRESHOLD_INTERCEPT = -0.671286
 #   R_a = nsigma - a log10(NMSE_eff), the statistic of the detection threshold.
 # "max_nsigma": the Tsft of largest nsigma, then isolate (v1.0 and v1.1).
 TSFT_SELECTION = "hybrid"
-# a of R_a. Chosen on the calibration set of the Tsft-selection study (141 noise
-# packs, 1800 injections): largest efficiency at FAR 3% and 1%, the same value
-# in every cross-validation fold; the efficiency changes by < 1% for a in [2, 10].
-RANKING_NMSE_WEIGHT = 5.0
+# a of R_a. Calibrated on injections outside the campaign: 2000 signals in packs 95, 104,
+# 113, 115, 126, 127, 128, 131, 134, 140 (every signal slice), with the noise search of the
+# 141 packs; largest efficiency at FAR 1% (studies/a_calibration, results/a_calibration).
+# The 3-fold noise cross-validation keeps 1/141 noise packs above the threshold out of fold.
+RANKING_NMSE_WEIGHT = 2.0
 # NMSE_eff = NMSE + NMSE_QUANT_COEFF / D^2, with D the drift of the fitted inspiral
 # across the isolated block, in remapped bins (search.ranking.quantised_nmse).
 # The Viterbi track lives on integer bins: rounding a line to the grid leaves
@@ -112,10 +113,9 @@ RANKING_NMSE_WEIGHT = 5.0
 # The coefficient follows from this argument, it is not fitted
 # (tests/test_ranking.py checks it on the fit of quantised ramps).
 NMSE_QUANT_COEFF = 0.25
-# Provisional R_a threshold for the candidate/status columns: FAR 3% of the 141
-# noise packs of the study. The final threshold comes from the noise search of the
-# campaign (analysis/compute_threshold_linear.py).
-PROVISIONAL_RANKING_THRESHOLD = 16.5
+# Provisional R_a threshold for the candidate/status columns: FAR 3% (4/141) of the noise
+# search with a = 2. The final threshold comes from analysis/compute_threshold_linear.py.
+PROVISIONAL_RANKING_THRESHOLD = 7.41
 
 # --------------------------------------------------------------------------
 # Injected population (Table I)
