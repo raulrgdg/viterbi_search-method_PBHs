@@ -7,6 +7,10 @@ are black crosses; the line is the FAR threshold
 (paper_data/calibration/far_threshold.json, analysis/compute_threshold.py).
 
     python figures/fig5_trigger_plane.py
+    python figures/fig5_trigger_plane.py --threshold threshold_far1.json --far 1   # legend "FAR 1%"
+
+--far is the false-alarm ratio (in %) written in the legend; default 3, as in the
+paper figure (its threshold allows 4/108 = 3.7%, see paper_data/README.md).
 """
 
 import argparse
@@ -56,6 +60,8 @@ def main():
     parser.add_argument("--snr-csv", type=Path, default=SNR_CSV)
     parser.add_argument("--threshold", type=Path, default=THRESHOLD_JSON)
     parser.add_argument("--output", type=Path, default=PLOTS_DIR / "fig5_trigger_plane.png")
+    parser.add_argument("--far", type=float, default=3.0,
+                        help="false-alarm ratio of the threshold, in %%, written in the legend (default 3)")
     args = parser.parse_args()
 
     threshold = load_threshold(args.threshold)
@@ -77,7 +83,7 @@ def main():
     log_nmse = np.log10(np.concatenate([signal["nmse"], noise["nmse"]]))
     x_line = np.linspace(log_nmse[log_nmse <= CURVE_MAX_LOG_NMSE].min(), CURVE_MAX_LOG_NMSE, 600)
     threshold_line, = ax.plot(10 ** x_line, threshold_curve(threshold, 10 ** x_line),
-                              color="black", linewidth=1.5, label="Threshold\n" + r"$\mathrm{FAR} \,  3\%$")
+                              color="black", linewidth=1.5, label="Threshold\n" + rf"$\mathrm{{FAR}} \,  {args.far:g}\%$")
 
     ax.set_xlabel(r"$\mathrm{NMSE}_\mathrm{eff}$" if threshold["nmse_column"] == "nmse_eff" else r"$\mathrm{NMSE}$")
     ax.set_xscale("log")
