@@ -62,6 +62,12 @@ def main():
     parser.add_argument("--output", type=Path, default=PLOTS_DIR / "fig5_trigger_plane.png")
     parser.add_argument("--far", type=float, default=3.0,
                         help="false-alarm ratio of the threshold, in %%, written in the legend (default 3)")
+    parser.add_argument("--linthresh", type=float, default=1.0,
+                        help="nsigma range |nsigma| < linthresh drawn linearly (symlog); 1 as in the paper figure, "
+                             "10 draws the boundary region (and the linear threshold) as straight lines")
+    parser.add_argument("--linscale", type=float, default=1.0,
+                        help="size of the linear range in decades of the log range (symlog; default 1)")
+    parser.add_argument("--ymin", type=float, default=Y_LIMITS[0], help=f"lower nsigma limit (default {Y_LIMITS[0]:g})")
     args = parser.parse_args()
 
     threshold = load_threshold(args.threshold)
@@ -87,10 +93,20 @@ def main():
 
     ax.set_xlabel(r"$\mathrm{NMSE}_\mathrm{eff}$" if threshold["nmse_column"] == "nmse_eff" else r"$\mathrm{NMSE}$")
     ax.set_xscale("log")
-    ax.set_yscale("symlog", linthresh=1)
+    if args.linthresh == 1.0 and args.linscale == 1.0:
+        ax.set_yscale("symlog", linthresh=1)
+    else:
+        ax.set_yscale("symlog", linthresh=args.linthresh, linscale=args.linscale)
+        if args.linthresh > 1:
+            # Labelled ticks inside the linear range, decades above it.
+            step = 2 if args.linthresh <= 12 else 5
+            linear = np.arange(np.ceil(args.ymin / step) * step, args.linthresh, step)
+            decades = 10.0 ** np.arange(np.ceil(np.log10(args.linthresh)), np.log10(Y_LIMITS[1]) + 1)
+            ticks = np.concatenate([linear, decades])
+            ax.set_yticks(ticks, [f"{t:g}" if t < args.linthresh else rf"$10^{{{int(np.log10(t))}}}$" for t in ticks])
     ax.set_ylabel(r"$n_{\sigma}$")
     ax.set_xlim(*X_LIMITS)
-    ax.set_ylim(*Y_LIMITS)
+    ax.set_ylim(args.ymin, Y_LIMITS[1])
     ax.grid(True, alpha=0.3)
     ax.legend(handles=[signal_points, noise_points, threshold_line], loc="upper right", frameon=True)
     fig.colorbar(signal_points, ax=ax, pad=0.02).set_label("SNR")
