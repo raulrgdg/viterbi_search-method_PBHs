@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased [UNDER TEST, branch tsft-selection]
+## v1.2.0 (unreleased) [UNDER TEST, branch tsft-selection]
 
 ### Changed
 
 * **Hybrid Tsft selection** (default, `config.TSFT_SELECTION = "hybrid"`). A
   candidate is isolated on every Tsft and the chunk keeps the isolated Tsft of
   largest R_a = nσ − a log10(NMSE_eff), the statistic of the detection
-  threshold (a = 5). The v1.1 selection (largest nσ, then isolate) is
+  threshold (a = 2, calibrated at FAR 1% on 10 packs outside the campaign,
+  `studies/a_calibration`). The v1.1 selection (largest nσ, then isolate) is
   `method="max_nsigma"`. Motivation: with 45 Tsft up to 422 s, a noise
   fluctuation of a long Tsft won the nσ selection over weak, well-fitted
   heavy signals (pack 25: 75/200 injections lost). See
