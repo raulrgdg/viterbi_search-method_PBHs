@@ -1,4 +1,4 @@
-"""[UNDER TEST] Rules that pick the Tsft of a chunk from its per-Tsft products.
+"""Rules that pick the Tsft of a chunk from its per-Tsft products.
 
 Part of the Tsft-selection study (studies/tsft_selection). The default search
 still uses search.power.select_best_tsft (largest nsigma over the Tsft list);
@@ -148,7 +148,7 @@ def nmse_eff(df):
 
 
 def select_by_ranking(df, a, tsft_list="95"):
-    """[UNDER TEST] Hybrid rule: per chunk, the isolated Tsft of largest R_a = nsigma - a log10(NMSE).
+    """Hybrid rule: per chunk, the isolated Tsft of largest R_a = nsigma - a log10(NMSE).
 
     The Tsft is chosen with the same statistic the detection threshold uses
     (search.ranking.linear_stat), with NMSE_eff (nmse_eff); a = 0 picks the

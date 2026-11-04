@@ -1,4 +1,4 @@
-"""[UNDER TEST] Ranking statistics and thresholds of the threshold review (search/ranking.py)."""
+"""Ranking statistics and thresholds of the threshold review (search/ranking.py)."""
 
 import numpy as np
 import pytest

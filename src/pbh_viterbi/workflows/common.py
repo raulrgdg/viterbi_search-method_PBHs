@@ -32,7 +32,7 @@ def add_common_arguments(parser):
     parser.add_argument("--threads", type=int, default=MAKE_SFT_THREADS,
                         help="Parallel lalpulsar_MakeSFTs processes per Tsft (makesfts method only).")
     parser.add_argument("--per-tsft-output", action="store_true",
-                        help="[UNDER TEST] Also isolate a candidate on every Tsft and write one row per chunk and "
+                        help="Also isolate a candidate on every Tsft and write one row per chunk and "
                              "Tsft to results/search/per_tsft_*.csv (Tsft-selection study).")
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging, including MakeSFTs output.")
     return parser

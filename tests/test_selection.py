@@ -1,4 +1,4 @@
-"""[UNDER TEST] Tsft-selection rules of the Tsft-selection study (search/selection.py)."""
+"""Tsft-selection rules of the Tsft-selection study (search/selection.py)."""
 
 import numpy as np
 import pandas as pd

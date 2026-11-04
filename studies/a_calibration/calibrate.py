@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Calibration of a, the weight of -log10(NMSE_eff) in R_a = nsigma - a log10(NMSE_eff).
+"""Calibration of a, the weight of -log10(NMSE_eff) in R_a = nsigma - a log10(NMSE_eff).
 
 a enters both the hybrid Tsft selection (largest R_a among the isolated Tsft)
 and the detection threshold (R_a >= t). It is chosen on a calibration set that

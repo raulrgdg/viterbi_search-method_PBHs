@@ -1,5 +1,5 @@
 #!/bin/bash
-# [UNDER TEST] Tsft-selection study: noise search of the 141 packs and injected
+# Tsft-selection study: noise search of the 141 packs and injected
 # search of a few campaign packs, with the 79 Tsft of the "union" list and the
 # per-Tsft output (--per-tsft-output), so that every selection rule of
 # pbh_viterbi.search.selection can be evaluated offline on the same products.

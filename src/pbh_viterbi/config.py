@@ -46,7 +46,7 @@ TSFT_LISTS = {
            63.5, 79.5, 99.5, 124.5, 154.5, 193.875, 238.125, 298.75, 377.0),
     "paper": (2, 3, 4, 5, 7, 10, 13, 18, 25, 35, 47, 63, 88),
 }
-# [UNDER TEST] "union": every Tsft of the three lists (79 values), used only by the
+# "union": every Tsft of the three lists (79 values), used only by the
 # Tsft-selection study (studies/tsft_selection), which evaluates several
 # selection rules offline on the per-Tsft products of one run.
 TSFT_LISTS["union"] = tuple(sorted(set().union(*TSFT_LISTS.values())))
@@ -91,7 +91,7 @@ PROVISIONAL_THRESHOLD_SLOPE = 255.5
 PROVISIONAL_THRESHOLD_INTERCEPT = -0.671286
 
 # --------------------------------------------------------------------------
-# [UNDER TEST] Tsft selection and ranking statistic (studies/tsft_selection,
+# Tsft selection and ranking statistic (studies/tsft_selection,
 # studies/ranking_statistic)
 # --------------------------------------------------------------------------
 # "hybrid": isolate a candidate on every Tsft and keep the one of largest

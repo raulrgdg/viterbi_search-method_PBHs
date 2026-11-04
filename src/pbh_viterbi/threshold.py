@@ -13,7 +13,7 @@ where basis(NMSE) is
 The paper threshold is produced by analysis/compute_threshold.py and stored as
 JSON in paper_data/calibration/far_threshold.json.
 
-[UNDER TEST] The linear threshold of the hybrid Tsft selection,
+The linear threshold of the hybrid Tsft selection,
 R_a = nsigma - a log10(NMSE_eff) >= t, is the degree-1 case with fixed slope:
 coefficients [a, t] in log10(NMSE_eff) (analysis/compute_threshold_linear.py).
 Its JSON names the NMSE column to use, ``nmse_column`` = "nmse_eff";

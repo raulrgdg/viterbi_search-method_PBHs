@@ -1,4 +1,4 @@
-"""[UNDER TEST] Ranking statistics and generalisable thresholds in the (NMSE, nsigma) plane.
+"""Ranking statistics and generalisable thresholds in the (NMSE, nsigma) plane.
 
 Part of the threshold review (studies/ranking_statistic). Nothing here is used
 by the default pipeline; analysis/compute_threshold.py (the paper threshold) is

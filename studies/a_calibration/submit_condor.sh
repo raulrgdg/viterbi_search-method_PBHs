@@ -1,5 +1,5 @@
 #!/bin/bash
-# [UNDER TEST] Injections of the calibration set of a (weight of -log10 NMSE_eff in R_a).
+# Injections of the calibration set of a (weight of -log10 NMSE_eff in R_a).
 #
 # 10 packs outside the campaign (drawn at random, seed 20261020, among 91-96 and
 # 104-140), each with one 200-signal slice of the population, with the per-Tsft

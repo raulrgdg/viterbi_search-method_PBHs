@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Ranking plane (NMSE_eff, nsigma) of the hybrid Tsft selection with its linear threshold.
+"""Ranking plane (NMSE_eff, nsigma) of the hybrid Tsft selection with its linear threshold.
 
 Selects the Tsft of every noise pack and injection of the Tsft-selection study
 with the search rule (largest R_a = nsigma - a log10 NMSE_eff, a =

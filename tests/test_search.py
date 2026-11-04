@@ -49,7 +49,7 @@ def test_best_tsft_is_selected(background):
 
 @pytest.mark.parametrize("kwargs,status,nmse,nsigma,mass", CASES)
 def test_hybrid_matches_isolation_on_a_single_tsft(background, kwargs, status, nmse, nsigma, mass):
-    """[UNDER TEST] With one Tsft the hybrid selection isolates the same candidate as v1.1."""
+    """With one Tsft the hybrid selection isolates the same candidate as v1.1."""
     from pbh_viterbi.config import RANKING_NMSE_WEIGHT
 
     result = search_candidate([synthetic_products(**kwargs)], *background, method="hybrid")
@@ -61,7 +61,7 @@ def test_hybrid_matches_isolation_on_a_single_tsft(background, kwargs, status, n
 
 
 def test_hybrid_prefers_the_well_fitted_tsft(background):
-    """[UNDER TEST] A loud but unfitted map loses against a weaker clean inspiral."""
+    """A loud but unfitted map loses against a weaker clean inspiral."""
     products = [synthetic_products(amplitude=0.0, seed=4), synthetic_products(amplitude=20.0, tsft=88)]
     result = search_candidate(products, *background, method="hybrid")
     assert result["tsft"] == 88 and result["selection"] == "hybrid" and len(result["per_tsft"]) == 2

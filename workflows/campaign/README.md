@@ -34,7 +34,7 @@ command skips the complete packs. When every job has finished, run
 unmerged (two jobs finishing together on a shared filesystem can miss each
 other) and lists the incomplete packs.
 
-[UNDER TEST] With the hybrid Tsft selection the jobs request 5 GB and write
+With the hybrid Tsft selection the jobs request 5 GB and write
 the per-Tsft products (`MEMORY`, `SEARCH_ARGS` in `submit_condor.sh`); the
 noise search must be re-run with the same code, since the threshold is set on
 its triggers:

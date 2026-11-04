@@ -1,7 +1,7 @@
-# Threshold review and the Tsft rules across the ranking space [UNDER TEST]
+# Threshold review and the Tsft rules across the ranking space
 
-**Status: under test, branch `tsft-selection`.** `analysis/compute_threshold.py`
-(the paper threshold) is unchanged; the new tools are in
+This study led to the v1.2 search (hybrid Tsft selection, linear threshold set on
+noise). `analysis/compute_threshold.py` (the paper threshold) is unchanged; the new tools are in
 `src/pbh_viterbi/search/ranking.py` and the `D_topk_nmse_len_95` rule of
 `search/selection.py`.
 

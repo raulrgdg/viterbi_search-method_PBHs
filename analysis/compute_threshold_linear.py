@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Linear detection threshold of the hybrid Tsft selection, set on noise only.
+"""Linear detection threshold of the hybrid Tsft selection, set on noise only.
 
 A trigger is a candidate when
 

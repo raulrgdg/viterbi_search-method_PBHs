@@ -1,9 +1,7 @@
-# Tsft-selection study [UNDER TEST]
+# Tsft-selection study
 
-**Status: under test, branch `tsft-selection`.** Nothing here changes the
-default search: `search_candidate` still selects the Tsft of largest nσ. The new
-code is marked `[UNDER TEST]` and is used only with `--per-tsft-output` and the
-`union` Tsft list.
+The study ran before the hybrid selection became the default (v1.2); its code is
+used only with `--per-tsft-output` and the `union` Tsft list.
 
 ## Why
 

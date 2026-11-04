@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Compare the Tsft-selection rules at equal false-alarm ratio.
+"""Compare the Tsft-selection rules at equal false-alarm ratio.
 
 Reads the tables written by collect.py, applies every rule of
 pbh_viterbi.search.selection to the noise packs and to the injections, and

@@ -75,7 +75,7 @@ def process_pack(pack, args, noise_background, per_tsft_output=None):
             for p in products
         ]
     result = search_candidate(products, *noise_background)
-    if per_tsft_output is not None:  # [UNDER TEST] per-Tsft products (Tsft-selection study)
+    if per_tsft_output is not None:  # per-Tsft products (Tsft-selection study)
         rows = result.get("per_tsft") or per_tsft_candidates(products, *noise_background)
         append_rows(per_tsft_rows(pack, rows, injected=False), per_tsft_output, PER_TSFT_FIELDNAMES)
     return [result_row(pack, result, injected=False)]

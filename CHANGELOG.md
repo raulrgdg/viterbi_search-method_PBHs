@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.2.0 (unreleased) [UNDER TEST, branch tsft-selection]
+## v1.2.0
 
 ### Changed
 

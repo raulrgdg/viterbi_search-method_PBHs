@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Summary of an injection campaign against the paper (v1.0) results.
+"""Summary of an injection campaign against the paper (v1.0) results.
 
 For the new campaign (hybrid Tsft selection, linear threshold R_a >= t, one
 threshold JSON per FAR) and for the paper campaign (paper_data, polynomial

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Collect the per-Tsft products of the Tsft-selection study.
+"""Collect the per-Tsft products of the Tsft-selection study.
 
 Merges any shard left unmerged by the jobs, checks that every chunk has all the
 Tsft of the "union" list and writes two tables to <results>/collected/:

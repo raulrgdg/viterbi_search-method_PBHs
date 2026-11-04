@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Threshold review: generalisable thresholds and the gain of D' across the ranking space.
+"""Threshold review: generalisable thresholds and the gain of D' across the ranking space.
 
 Uses the per-Tsft tables of the Tsft-selection study (studies/tsft_selection,
 collected/*.csv) and the rules of pbh_viterbi.search.selection. Three analyses:
@@ -377,7 +377,7 @@ def main():
     save(fig, out, "fig_block_length")
 
     # ---- summary ---------------------------------------------------------------------------
-    lines = ["# Threshold review and D' across the ranking space [UNDER TEST]", "",
+    lines = ["# Threshold review and D' across the ranking space", "",
              f"{n_noise} noise packs, {n_inj} injections; thresholds at FAR 3% and 1%.", "",
              "## 1. Ranking-space scan (threshold from noise only)", "",
              "| FAR | a | eff A | eff B | eff D' | eff D'' | eff D''' | D'−B (68% CI) | D'''−B (68% CI) | D''' gain/loss vs B | McNemar p |",

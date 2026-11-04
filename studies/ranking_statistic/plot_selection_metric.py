@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Tsft chosen by nsigma vs by NMSE: detection efficiency at fixed FAR.
+"""Tsft chosen by nsigma vs by NMSE: detection efficiency at fixed FAR.
 
 Three ways of choosing the Tsft of a chunk among the 45 of list 95:
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] ROC and selected-Tsft diagnostics of the hybrid selection with NMSE_eff.
+"""ROC and selected-Tsft diagnostics of the hybrid selection with NMSE_eff.
 
 Four ways of choosing the Tsft, all ranked with the same detection statistic
 R_a = nsigma - a log10(NMSE_eff) (a = config.RANKING_NMSE_WEIGHT, NMSE_eff =

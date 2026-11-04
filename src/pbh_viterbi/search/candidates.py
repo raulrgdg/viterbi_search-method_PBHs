@@ -112,7 +112,7 @@ def search_candidate(tsft_results, noise_means, noise_stds, method=None):
     ``pbh_viterbi.sft.maps.track_product``. ``method`` (default
     config.TSFT_SELECTION) chooses the Tsft:
 
-      "hybrid"      [UNDER TEST] isolate a candidate on every Tsft and keep the
+      "hybrid"      isolate a candidate on every Tsft and keep the
                     one of largest R_a = nsigma - a log10(NMSE_eff)
       "max_nsigma"  the Tsft of largest nsigma, then isolate (v1.0, v1.1)
 
@@ -160,7 +160,7 @@ def _search_max_nsigma(tsft_results, noise_means, noise_stds):
 
 
 # --------------------------------------------------------------------------
-# [UNDER TEST] Hybrid Tsft selection (studies/tsft_selection,
+# Hybrid Tsft selection (studies/tsft_selection,
 # studies/ranking_statistic) and the per-Tsft products it is built on.
 # --------------------------------------------------------------------------
 

@@ -37,7 +37,7 @@ FIELDNAMES = [
 ]
 
 
-# [UNDER TEST] One row per chunk and Tsft, written with --per-tsft-output for the
+# One row per chunk and Tsft, written with --per-tsft-output for the
 # Tsft-selection study (studies/tsft_selection); see search.candidates.per_tsft_candidates.
 PER_TSFT_FIELDNAMES = [
     "pack", "signal_id", "injected",  # chunk; signal_id joins the injection parameters of the main CSV
@@ -56,7 +56,7 @@ def per_tsft_rows(pack, rows, injected, signal_id=None):
 
 
 def per_tsft_csv_name(injected, pack=None):
-    """[UNDER TEST] File of the per-Tsft rows, next to the main result file."""
+    """File of the per-Tsft rows, next to the main result file."""
     return "per_tsft_" + csv_name(injected, pack).removeprefix("search_results_")
 
 

@@ -109,7 +109,7 @@ def main():
     log.info("Job %d/%d (%s SFTs, %d Tsft): %d signal(s) %s -> %s", args.job_id, args.n_jobs, args.sft_method,
              len(args.tsft), len(signal_ids), f"[{signal_ids[0]}..{signal_ids[-1]}]" if signal_ids else "[]", output)
     write_rows([], output)
-    per_tsft_name = per_tsft_csv_name(injected=True, pack=args.pack)  # [UNDER TEST] Tsft-selection study
+    per_tsft_name = per_tsft_csv_name(injected=True, pack=args.pack)  # Tsft-selection study
     per_tsft_output = shard_path(per_tsft_name, args.n_jobs, args.job_id) if args.per_tsft_output else None
     if per_tsft_output is not None:
         write_rows([], per_tsft_output, PER_TSFT_FIELDNAMES)

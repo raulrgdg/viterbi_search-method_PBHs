@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[UNDER TEST] Why v1.2 recovers fewer signals than the paper at 1.1-1.6e-3 Msun.
+"""Why v1.2 recovers fewer signals than the paper at 1.1-1.6e-3 Msun.
 
 Four checks, on the v1.2 campaign and the paper campaign (paper_data):
 

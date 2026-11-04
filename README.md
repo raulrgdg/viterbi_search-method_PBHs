@@ -8,10 +8,11 @@ This is the code of
 [*Search for Planetary-mass Black Holes with an Improved Viterbi Algorithm*](https://arxiv.org/abs/2607.18352)
 (R. Rodriguez, G. Alestas, S. Kuroyanagi, J. Garcia-Bellido).
 
-## Version 1.1
+## Version 1.2
 
-This is **version 1.1** of the pipeline. Compared with v1.0, the version used
-for the paper:
+This is **version 1.2** of the pipeline: the Tsft of each chunk is chosen by the detection statistic R = nσ − 2 log₁₀ NMSE_eff (NMSE with the quantisation limit of the track), and the threshold on R is linear and set on noise only.
+
+Version 1.1 changed, with respect to v1.0 (the version used for the paper):
 * SFTs are built in memory, ~100× faster;
 * SFT durations come from the tracking limit of the remapped map;
 * every search product uses one frequency band;
@@ -30,10 +31,11 @@ long, slowly chirping track. For each 32768 s chunk of strain data the pipeline:
    straight line whose slope depends only on the chirp mass.
 2. **Tracks** the most likely path through each map with the Viterbi algorithm
    ([soapcw](https://pypi.org/project/soapcw/)).
-3. **Isolates the candidate.** It picks the most significant map (nσ), finds the
-   part of the track that best follows an inspiral (NMSE) and refines its edges.
-4. **Ranks** it by (nσ, NMSE) against a threshold set at a fixed false-alarm
-   ratio, and estimates the chirp mass.
+3. **Isolates the candidate** on every map: it finds the part of the track that
+   best follows an inspiral (NMSE) and refines its edges, then keeps the Tsft of
+   largest R = nσ − 2 log₁₀ NMSE_eff.
+4. **Ranks** it by R against a linear threshold set on noise at a fixed
+   false-alarm ratio, and estimates the chirp mass.
 
 The band maximises the sensitivity for the O3 noise curve
 (`tools/optimal_freq_range.py`).
@@ -120,8 +122,7 @@ bash workflows/campaign/submit_condor.sh       # or workflows/campaign/submit_sl
 
 **Analysis.** Merge the injection results, compute the SNR of every injection,
 set the false-alarm threshold and compute the distance reach.
-[UNDER TEST] With the hybrid Tsft selection (default on branch
-`tsft-selection`) the threshold is linear in R_a = nσ − a log10(NMSE_eff) and
+With the hybrid Tsft selection (default since v1.2) the threshold is linear in R_a = nσ − a log10(NMSE_eff) and
 is set on the noise triggers alone:
 
 ```bash
