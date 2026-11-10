@@ -8,18 +8,35 @@ This is the code of
 [*Search for Planetary-mass Black Holes with an Improved Viterbi Algorithm*](https://arxiv.org/abs/2607.18352)
 (R. Rodriguez, G. Alestas, S. Kuroyanagi, J. Garcia-Bellido).
 
-## Version 1.2
+## Versions
 
-This is **version 1.2** of the pipeline: the Tsft of each chunk is chosen by the detection statistic R = nσ − 2 log₁₀ NMSE_eff (NMSE with the quantisation limit of the track), and the threshold on R is linear and set on noise only.
+This is **version 1.3** of the pipeline. See [CHANGELOG.md](CHANGELOG.md) for details;
+the paper results (v1.0) are in `paper_data/`.
 
-Version 1.1 changed, with respect to v1.0 (the version used for the paper):
+**v1.3** (new SFT maps and a second detector):
+* the strain of each chunk is high-passed once, instead of every SFT segment: the
+  per-segment filter leaked broadband power into the band and raised the noise
+  floor ×1.5–17 above the PSD (`--sft-highpass chunk`, default);
+* every SFT of the map is also divided by its median over the band, which flattens
+  broadband glitches (`--map-normalisation bin+sft`, default);
+* optional H1+L1 search (`--detectors H1 L1`): the normalised maps of both detectors
+  are summed and tracked once (61 of the 141 chunks have L1 data);
+* in a quick test, the efficiency at FAR ~3% goes from 33% (v1.2) to 73% (H1) and
+  89% (H1+L1) ([studies/multi_detector](studies/multi_detector/README.md));
+* the v1.2 maps are still available with `--sft-highpass segment --map-normalisation bin`.
+
+**v1.2** (Tsft selection and threshold):
+* the Tsft of each chunk is chosen by R = nσ − 2 log₁₀ NMSE_eff, the detection
+  statistic, instead of the largest nσ;
+* NMSE_eff includes the quantisation limit of the track;
+* the threshold on R is linear and set on noise only.
+
+**v1.1** (speed and coverage):
 * SFTs are built in memory, ~100× faster;
 * SFT durations come from the tracking limit of the remapped map;
 * every search product uses one frequency band;
 * the injection parameters are stored, so their SNR can be computed afterwards;
 * 33 more O3b chunks are available (141 in total) for the noise background.
-
-See [CHANGELOG.md](CHANGELOG.md). The paper results (v1.0) are in `paper_data/`.
 
 ## How the search works
 
@@ -27,8 +44,9 @@ These binaries spend hours to months in the LIGO band, so their signal is a
 long, slowly chirping track. For each 32768 s chunk of strain data the pipeline:
 
 1. **Builds time-frequency maps.** It computes SFTs in 61.1–126.8 Hz for a set
-   of SFT lengths (Tsft) and remaps them to (t, f⁻⁸ᐟ³), where an inspiral is a
-   straight line whose slope depends only on the chirp mass.
+   of SFT lengths (Tsft), normalises them per frequency bin and per SFT, and remaps
+   them to (t, f⁻⁸ᐟ³), where an inspiral is a straight line whose slope depends only
+   on the chirp mass. With `--detectors H1 L1` the maps of both detectors are summed.
 2. **Tracks** the most likely path through each map with the Viterbi algorithm
    ([soapcw](https://pypi.org/project/soapcw/)).
 3. **Isolates the candidate** on every map: it finds the part of the track that
@@ -85,6 +103,14 @@ Inject a simulated inspiral and search it:
 python -m pbh_viterbi.workflows.injected_search --pack 3 --signals 300:301
 ```
 
+For a search with both detectors, download the L1 frames of a chunk listed in
+`calibration/l1_packs.txt` and add `--detectors H1 L1` (it needs its own nσ background):
+
+```bash
+python -m pbh_viterbi.o3.download --ifo L1 --packs 3
+python -m pbh_viterbi.workflows.noise_search --packs 3 --detectors H1 L1
+```
+
 Each run writes one row per analysed chunk to `results/search/`. Each row has:
 * the detection statistics (`nsigma`, `nmse`) and the estimated chirp mass
   (`mass`);
@@ -92,7 +118,9 @@ Each run writes one row per analysed chunk to `results/search/`. Each row has:
   polarisation, inclination, time to merger).
 
 A chunk takes ~1 min on one core (2.3 GB of memory). The nσ normalisation of each Tsft list
-ships in `calibration/`. All search parameters (band, Tsft lists, injected
+ships in `calibration/`, one file per map configuration (`noise_background_tsft<list><suffix>.csv`,
+suffix `_chunkhp_sftnorm` for the v1.3 maps, none for the v1.2 maps). A configuration without its
+file stops with an error that says how to compute it. All search parameters (band, Tsft lists, injected
 population, thresholds) are in
 [`src/pbh_viterbi/config.py`](src/pbh_viterbi/config.py).
 
@@ -170,7 +198,7 @@ Plots are written to `results/plots/`.
 | `analysis/` | merging, noise background, threshold, PSD and SNR |
 | `figures/` | Figs. 1–8 of the paper |
 | `tools/` | search design: optimal band, Tsft lists, injection times, Doppler drift |
-| `studies/` | benchmarks of the search stages and of MakeSFTs, PSD cross-check |
+| `studies/` | benchmarks, PSD cross-check, Tsft selection, ranking statistic, [H1+L1 and the v1.3 maps](studies/multi_detector/README.md) |
 | `docs/` | [fast SFTs](docs/fast_sft.md), [Tsft choice](docs/tsft_optimum.md), [computational cost](docs/computational_cost.md), [possible upgrades](docs/future_upgrades.md) |
 | `paper_data/` | search results and calibration data of the paper ([details](paper_data/README.md)) |
 

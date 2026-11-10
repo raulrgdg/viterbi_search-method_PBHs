@@ -1,5 +1,62 @@
 # Changelog
 
+## v1.3.0
+
+### Changed
+
+* **Default maps: chunk high-pass and per-bin + per-SFT normalisation.** Running the
+  search with no options now uses `--sft-highpass chunk --map-normalisation bin+sft`
+  (`config.SFT_HIGHPASS`, `config.MAP_NORMALISATION`). The v1.2 maps are
+  `--sft-highpass segment --map-normalisation bin`.
+  * *Chunk high-pass:* the strain of a chunk is high-passed once, instead of every SFT
+    segment as `lalpulsar_MakeSFTs` does. With the rectangular window, the
+    per-segment filter transient leaked broadband power into the band: the noise
+    floor was ×1.5–6 above the PSD in H1 and ×3–17 in L1. With the chunk high-pass it
+    is 0.85–0.95 of the PSD.
+  * *Per-SFT normalisation:* after the per-bin normalisation, every SFT is divided by
+    its median over the band. This flattens the broadband glitches that the Viterbi
+    track followed in noise (packs 52 and 27: R ≈ 9 → 0.5).
+  * In a quick test (36 signals × 10 packs, threshold on 61 noise packs) the
+    efficiency at FAR ~3% goes from 33% with the v1.2 maps to 73%. See
+    `studies/multi_detector`.
+* **One nσ background per map configuration.** The file name carries a suffix for the
+  detectors, high-pass and normalisation (`paths.config_suffix`): `_chunkhp_sftnorm`
+  for the v1.3 default, none for the v1.2 maps, so the v1.1–v1.2 files keep their
+  names. `analysis/noise_background_stats.py` takes the same `--detectors`,
+  `--sft-highpass` and `--map-normalisation` options to choose its table and output.
+* **nσ background of the v1.3 maps shipped** for every Tsft list
+  (`calibration/noise_background_tsft<list>_chunkhp_sftnorm.csv`), computed on the
+  141 O3b packs, with its per-pack table (`noise_track_power_chunkhp_sftnorm.csv`).
+  An H1+L1 background is not shipped: compute it on the 61 packs with L1.
+* **Errors instead of silent failures.**
+  * A search stops if its nσ background file is missing, naming the configuration and
+    how to compute it.
+  * The map normalisation stops on non-finite strain, and on SFTs with zero median
+    (zero-padded frames) that `bin+sft` cannot normalise.
+  * `--sft-method makesfts` asks for `--sft-highpass segment`.
+* The paper figures, the cost benchmark and the Tsft-list check keep the v1.2 maps,
+  so they reproduce their published results.
+
+### New
+
+* **H1+L1 search** (`--detectors H1 L1`, in-memory SFTs only).
+  * Each detector's map is normalised on its own; the maps are summed, divided by √N
+    and tracked once.
+  * Injections project the same h₊, hₓ on each detector.
+  * Both detectors need data on the same chunk: 61 of the 141 chunks
+    (`calibration/l1_packs.txt`).
+  * Quick test: 89% efficiency at FAR ~3% with the v1.3 maps.
+* `o3.download --ifo L1` downloads L1 frames into the same pack folders, and warns
+  about frames that come short or with non-finite samples.
+* `injected_search --signal-list <csv>` injects a list of signals (signal_id, chirp
+  mass, distance) instead of the population grid, and `--signal-ids` picks some
+  signals of either.
+
+### To do before a v1.3 campaign
+
+* *a* of R = nσ − a log₁₀ NMSE_eff (2 in v1.2) and the threshold must be recalibrated
+  with the v1.3 maps; the quick test prefers a = 1.
+
 ## v1.2.0
 
 ### Changed
