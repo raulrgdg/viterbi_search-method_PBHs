@@ -43,7 +43,7 @@ def read_pack(pack):
 
 
 def products(segments, tsfts):
-    return fast_products(segments, tsfts, FMIN, FMAX)
+    return fast_products(segments, tsfts, FMIN, FMAX, sft_highpass="segment", normalisation="bin")  # v1.1-v1.2 maps
 
 
 def append_csv(rows, path):

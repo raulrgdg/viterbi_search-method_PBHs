@@ -5,6 +5,11 @@ with `lalpulsar_MakeSFTs`. The maps and the search results are the same, and
 a chunk is processed ~100× faster. `--sft-method makesfts` keeps the original
 method (integer Tsft only).
 
+> **v1.3:** the default is now to high-pass the whole chunk once
+> (`--sft-highpass chunk`), which removes the spectral leakage of the per-segment
+> filter (`studies/multi_detector`). The equivalence with MakeSFTs below holds for
+> `--sft-highpass segment --map-normalisation bin`, the v1.2 maps.
+
 ## Why
 
 With MakeSFTs, SFT generation took ~97% of the run time: 86 of 89 min per

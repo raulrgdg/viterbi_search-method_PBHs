@@ -13,6 +13,10 @@ The same steps run here in memory on the strain of a whole chunk, without
 writing frames or SFT files: the remapped maps and Viterbi tracks are identical
 to those built from MakeSFTs (up to the last bit of single precision), ~100x
 faster per chunk (docs/fast_sft.md).
+
+Since v1.3 the search high-passes the whole chunk once by default (``prefiltered``,
+``--sft-highpass chunk``), which MakeSFTs cannot do; ``--sft-highpass segment``
+keeps the per-segment filter described above.
 """
 
 import numpy as np

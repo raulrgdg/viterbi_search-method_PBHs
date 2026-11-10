@@ -48,7 +48,7 @@ def main():
     save(fig, PLOTS_DIR / "fig2_top_spectrogram.png", dpi=400)
 
     # Bottom: remapped (t, f^-8/3) map.
-    x_grid, remapped = remapped_map(sfts.sft.T, TSFT)
+    x_grid, remapped = remapped_map(sfts.sft.T, TSFT, normalisation="bin")  # paper maps (per-bin normalisation)
     fig, ax = plt.subplots(figsize=(8.6, 5.6), constrained_layout=True)
     image = ax.imshow(normalized_log_power(remapped.T), origin="lower", aspect="auto", interpolation="none",
                       cmap="viridis",

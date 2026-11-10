@@ -65,18 +65,18 @@ TSFT_VALUES = TSFT_LISTS[DEFAULT_TSFT_LIST]
 # SFT generation: "fast" (in memory, pbh_viterbi.sft.fast) or "makesfts"
 # (lalpulsar_MakeSFTs, as in the paper; integer Tsft only, ~100x slower).
 SFT_METHOD = "fast"
-# High-pass of the in-memory SFTs: "segment" filters every SFT segment separately, as
-# lalpulsar_MakeSFTs (paper, v1.0-v1.2); "chunk" filters the whole chunk once.
+# High-pass of the in-memory SFTs (default "chunk" since v1.3): "chunk" filters the whole chunk
+# once; "segment" filters every SFT segment separately, as lalpulsar_MakeSFTs (paper, v1.0-v1.2).
 # With the rectangular window, the filter start transient of every segment leaks broadband power
 # into the band, raising the noise floor x1.5-17 above the PSD (studies/multi_detector).
-SFT_HIGHPASS = "segment"
+SFT_HIGHPASS = "chunk"
 SFT_HIGHPASS_MODES = ("segment", "chunk")
-# Normalisation of the |SFT| map: "bin" divides every frequency bin by its median over the
-# chunk (paper, v1.0-v1.2); "bin+sft" then also divides every SFT by its
+# Normalisation of the |SFT| map (default "bin+sft" since v1.3): "bin" divides every frequency bin
+# by its median over the chunk (paper, v1.0-v1.2); "bin+sft" then also divides every SFT by its
 # median over the band, which flattens broadband glitches (studies/multi_detector).
 # Every (detectors, high-pass, normalisation) combination has its own nsigma background
-# (paths.noise_background_path).
-MAP_NORMALISATION = "bin"
+# (paths.noise_background_path). The v1.2 maps are --sft-highpass segment --map-normalisation bin.
+MAP_NORMALISATION = "bin+sft"
 MAP_NORMALISATION_MODES = ("bin", "bin+sft")
 SFT_WINDOW = "rectangular"
 MAKE_SFT_THREADS = 256  # parallel lalpulsar_MakeSFTs workers per Tsft (makesfts method only)

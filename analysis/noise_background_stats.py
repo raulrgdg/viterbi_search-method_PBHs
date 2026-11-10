@@ -11,7 +11,7 @@ For every Tsft list whose values are all in the table, this script writes
 calibration/noise_background_tsft<list><suffix>.csv, the file the searches read by
 default for that list. The suffix names the map configuration and is set by
 --detectors, --sft-highpass and --map-normalisation, which must be those of the
-background run (default: the default maps of config.py; the v1.2 maps,
+background run (default: the v1.3 default, suffix _chunkhp_sftnorm; the v1.2 maps,
 --sft-highpass segment --map-normalisation bin, have no suffix).
 
     # recompute the per-list files from the stored table

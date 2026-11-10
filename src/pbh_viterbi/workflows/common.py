@@ -35,11 +35,12 @@ def add_common_arguments(parser):
     parser.add_argument("--sft-method", choices=("fast", "makesfts"), default=SFT_METHOD,
                         help="In-memory SFTs (default) or lalpulsar_MakeSFTs on frame files (paper method).")
     parser.add_argument("--sft-highpass", choices=SFT_HIGHPASS_MODES, default=SFT_HIGHPASS,
-                        help="High-pass of the in-memory SFTs: 'segment' (default, every SFT segment, as MakeSFTs) "
-                             "or 'chunk' (the whole chunk once).")
+                        help="High-pass of the in-memory SFTs: 'chunk' (default since v1.3, the whole chunk once) "
+                             "or 'segment' (every SFT segment, as MakeSFTs and v1.0-v1.2).")
     parser.add_argument("--map-normalisation", choices=MAP_NORMALISATION_MODES, default=MAP_NORMALISATION,
-                        help="'bin' (default): every frequency bin divided by its median over the chunk; "
-                             "'bin+sft': then every SFT by its median over the band (flattens broadband glitches).")
+                        help="'bin+sft' (default since v1.3): every frequency bin divided by its median over the "
+                             "chunk, then every SFT by its median over the band (flattens broadband glitches); "
+                             "'bin': per-bin only (v1.0-v1.2).")
     parser.add_argument("--threads", type=int, default=MAKE_SFT_THREADS,
                         help="Parallel lalpulsar_MakeSFTs processes per Tsft (makesfts method only).")
     parser.add_argument("--per-tsft-output", action="store_true",
@@ -62,7 +63,7 @@ def resolve_tsft_and_background(args):
         raise ValueError("Several detectors need the in-memory SFTs (--sft-method fast).")
     if args.sft_highpass != "segment" and args.sft_method != "fast":
         raise ValueError(f"--sft-method {args.sft_method} high-passes every SFT segment (lalpulsar_MakeSFTs); "
-                         "add --sft-highpass segment ('chunk' needs --sft-method fast).")
+                         "add --sft-highpass segment (the default 'chunk' needs --sft-method fast).")
     if args.noise_background is None:
         args.noise_background = noise_background_path(args.tsft_list, args.detectors, args.sft_highpass,
                                                       args.map_normalisation)

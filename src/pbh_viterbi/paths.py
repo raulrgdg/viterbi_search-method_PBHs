@@ -38,7 +38,7 @@ def config_suffix(detectors=DETECTORS, sft_highpass=SFT_HIGHPASS, normalisation=
 
     The v1.2 maps (H1, per-segment high-pass, per-bin normalisation) have no suffix, so the
     files of v1.1-v1.2 keep their names; other cases add ``_H1L1``, ``_chunkhp`` and
-    ``_sftnorm``, e.g. ``_chunkhp_sftnorm``.
+    ``_sftnorm``, e.g. ``_chunkhp_sftnorm`` for the v1.3 default.
     """
     suffix = "" if tuple(detectors) == ("H1",) else "_" + "".join(detectors)
     suffix += "" if sft_highpass == "segment" else f"_{sft_highpass}hp"

@@ -39,6 +39,7 @@ def test_one_detector_dict_equals_the_single_detector_path():
 
 
 def test_background_file_names():
+    assert noise_background_path("95").name == "noise_background_tsft95_chunkhp_sftnorm.csv"  # v1.3 default
     assert noise_background_path("95", ["H1"], "segment", "bin").name == "noise_background_tsft95.csv"  # v1.2
     assert noise_background_path("95", ["H1", "L1"], "segment", "bin").name == "noise_background_tsft95_H1L1.csv"
     assert (noise_background_path("95", ["H1", "L1"], "chunk", "bin+sft").name
@@ -56,6 +57,7 @@ def test_chunk_highpass_filters_the_strain_once():
     chunk = fast_products(segments, [8.0], sft_highpass="chunk")[0]
     expected = track_product(sft_matrix(highpass(x, 512, 61.1), 512, 8.0, 61.1, 65.7, prefiltered=True), 8.0)
     np.testing.assert_array_equal(chunk["power"], expected["power"])
+    np.testing.assert_array_equal(fast_products(segments, [8.0])[0]["power"], chunk["power"])  # default
     segment = fast_products(segments, [8.0], sft_highpass="segment")[0]
     assert not np.allclose(chunk["power"], segment["power"])
     assert (noise_background_path("95", ["H1", "L1"], "chunk", "bin").name

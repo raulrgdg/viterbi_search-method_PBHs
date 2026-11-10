@@ -4,8 +4,9 @@
 # Usage: scripts/run_local.sh STAGE N_PROC
 #   download     download the O3b packs from GWOSC (141; 1-108 used in the paper)
 #   background   noise track power of PACKS (default all) for the Tsft of every list, merged into
-#                calibration/noise_track_power.csv, and the nsigma background of every list
-#                (calibration/noise_background_tsft<list>.csv). To add new noise packs:
+#                calibration/noise_track_power<suffix>.csv, and the nsigma background of every list
+#                (calibration/noise_background_tsft<list><suffix>.csv), suffix "_chunkhp_sftnorm"
+#                for the default maps of v1.3 (paths.config_suffix). To add new noise packs:
 #                PACKS="109-120" bash scripts/run_local.sh background 8
 #   noise        noise search of PACKS (default all, 141) -> results/search/search_results_noise.csv
 #   injected     injection campaign: every pack of CAMPAIGN (paper: 90 packs, all: 108)

@@ -52,7 +52,7 @@ def main():
     sfts = injected_sfts("fig4", PACK, TSFT, **SIGNAL, threads=args.threads, regenerate=args.regenerate,
                          o3_dir=args.o3_dir)
     hours = hours_since_start(sfts)
-    x_grid, power = remapped_map(sfts.sft.T, TSFT)
+    x_grid, power = remapped_map(sfts.sft.T, TSFT, normalisation="bin")  # paper maps (per-bin normalisation)
     track_index = viterbi_track(power)
     track = x_grid[track_index]
 

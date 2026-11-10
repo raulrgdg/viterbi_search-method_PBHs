@@ -17,7 +17,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pbh_viterbi.config import FMIN, PACK_DURATION, TSFT_VALUES  # noqa: E402
-from pbh_viterbi.paths import DEFAULT_NOISE_BACKGROUND  # noqa: E402
+from pbh_viterbi.paths import noise_background_path  # noqa: E402
 from pbh_viterbi.search.candidates import search_candidate  # noqa: E402
 from pbh_viterbi.search.power import load_noise_background  # noqa: E402
 from pbh_viterbi.sft.maps import (  # noqa: E402
@@ -31,7 +31,8 @@ from pbh_viterbi.sft.maps import (  # noqa: E402
 
 def main():
     rng = np.random.default_rng(0)
-    means, stds = load_noise_background(DEFAULT_NOISE_BACKGROUND)
+    # v1.2 maps and background, as in docs/computational_cost.md
+    means, stds = load_noise_background(noise_background_path("95", ("H1",), "segment", "bin"))
     viterbi_track(rng.chisquare(2, (50, 20)))  # import and compile soapcw before timing
 
     print(" Tsft  n_SFT  n_bins   pixels  remap[s]  viterbi[s]  candidate[s]")
@@ -42,7 +43,7 @@ def main():
         sft = rng.normal(size=(nbins, nsft)) + 1j * rng.normal(size=(nbins, nsft))
 
         t0 = time.perf_counter()
-        power = remap_to_fm83(normalized_power(sft), geometry["x_inc"], geometry["x_new"])
+        power = remap_to_fm83(normalized_power(sft, "bin"), geometry["x_inc"], geometry["x_new"])
         t1 = time.perf_counter()
         track = viterbi_track(power)
         t2 = time.perf_counter()
