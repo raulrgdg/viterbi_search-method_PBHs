@@ -24,7 +24,7 @@ Examples:
 import logging
 
 from pbh_viterbi.jobs import split_for_job
-from pbh_viterbi.o3.frames import read_pack_frames, write_raw_framecache
+from pbh_viterbi.o3.frames import write_raw_framecache
 from pbh_viterbi.o3.packs import pack_window, parse_pack_list
 from pbh_viterbi.results import (
     FIELDNAMES,
@@ -45,6 +45,7 @@ from pbh_viterbi.workflows.common import (
     chunk_products,
     existing_pack_dir,
     new_parser,
+    read_detector_frames,
     resolve_tsft_and_background,
     setup_logging,
 )
@@ -65,7 +66,7 @@ def parse_args():
 def process_pack(pack, args, noise_background, per_tsft_output=None):
     t_start, t_end = pack_window(pack)
     pack_dir = existing_pack_dir(pack, args.o3_dir)
-    segments = read_pack_frames(pack_dir, t_start) if args.sft_method == "fast" else None
+    segments = read_detector_frames(pack_dir, t_start, args.detectors) if args.sft_method == "fast" else None
     products = chunk_products(args, segments, t_start, t_end,
                               lambda work_dir: write_raw_framecache(f"{work_dir}/framecache", pack_dir, t_start))
 
@@ -94,8 +95,9 @@ def main():
 
     packs = split_for_job(parse_pack_list(args.packs), args.n_jobs, args.job_id)
     output = shard_path(name, args.n_jobs, args.job_id)
-    log.info("Job %d/%d (%s mode, %s SFTs, %d Tsft): packs %s -> %s", args.job_id, args.n_jobs, args.mode,
-             args.sft_method, len(args.tsft), packs, output)
+    log.info("Job %d/%d (%s mode, %s, %s SFTs, %s high-pass, %s normalisation, %d Tsft): packs %s -> %s",
+             args.job_id, args.n_jobs, args.mode, "+".join(args.detectors), args.sft_method, args.sft_highpass,
+             args.map_normalisation, len(args.tsft), packs, output)
     write_rows([], output, fields)
     per_tsft = args.per_tsft_output and not background
     per_tsft_name = per_tsft_csv_name(injected=False)

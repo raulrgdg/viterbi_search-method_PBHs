@@ -3,6 +3,7 @@
 Example:
     python -m pbh_viterbi.o3.download --packs 1-12
     python -m pbh_viterbi.o3.download --packs all --n-jobs 5 --job-id 0
+    python -m pbh_viterbi.o3.download --ifo L1 --packs 3,11,13   # L1 frames into the same pack folders
 """
 
 import argparse
@@ -13,7 +14,8 @@ from pathlib import Path
 
 import numpy as np
 
-from pbh_viterbi.config import CHANNEL, FRAME_LENGTH, GWOSC_SAMPLE_RATE, IFO, NUM_FRAMES, SAMPLE_RATE
+from pbh_viterbi.config import (CHANNEL, FRAME_LENGTH, GWOSC_SAMPLE_RATE, IFO, NUM_FRAMES, SAMPLE_RATE,
+                                 SUPPORTED_DETECTORS, channel_for)
 from pbh_viterbi.jobs import split_for_job
 from pbh_viterbi.o3.frames import frame_start_times, raw_frame_name
 from pbh_viterbi.o3.packs import pack_window, parse_pack_list
@@ -69,6 +71,9 @@ def download_pack(pack, o3_dir=None, ifo=IFO, channel=CHANNEL, sample_rate=SAMPL
             series = series.resample(sample_rate)
 
         data = np.asarray(series.value, dtype=np.float64)
+        if data.size != expected_samples or not np.all(np.isfinite(data)):
+            log.warning("%s frame %d: %d samples (expected %d), %d non-finite; padded/truncated",
+                        ifo, start, data.size, expected_samples, int(np.sum(~np.isfinite(data))))
         if data.size < expected_samples:
             data = np.pad(data, (0, expected_samples - data.size), mode="constant")
         elif data.size > expected_samples:
@@ -87,6 +92,7 @@ def download_pack(pack, o3_dir=None, ifo=IFO, channel=CHANNEL, sample_rate=SAMPL
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--packs", default="all", help='"all", "5", "1,2,3" or "1-12,37-48".')
+    parser.add_argument("--ifo", choices=SUPPORTED_DETECTORS, default=IFO, help="Detector (default H1).")
     parser.add_argument("--o3-dir", type=Path, default=O3_DIR, help="Destination folder.")
     parser.add_argument("--n-jobs", type=int, default=1, help="Total number of parallel jobs.")
     parser.add_argument("--job-id", type=int, default=0, help="Index of this job in [0, n_jobs).")
@@ -103,7 +109,7 @@ def main():
     log.info("Job %d/%d downloads packs %s into %s", args.job_id, args.n_jobs, packs, args.o3_dir)
     for index, pack in enumerate(packs, start=1):
         log.info("[%d/%d] Downloading O3b pack %d", index, len(packs), pack)
-        download_pack(pack, args.o3_dir)
+        download_pack(pack, args.o3_dir, ifo=args.ifo, channel=channel_for(args.ifo))
     log.info("Download finished.")
 
 

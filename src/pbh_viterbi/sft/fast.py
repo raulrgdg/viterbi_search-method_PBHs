@@ -46,11 +46,13 @@ def samples_per_sft(tsft, sample_rate):
     return int(round(n))
 
 
-def sft_matrix(strain, sample_rate, tsft, fmin, band, f_highpass=None, single_precision=True):
+def sft_matrix(strain, sample_rate, tsft, fmin, band, f_highpass=None, single_precision=True, prefiltered=False):
     """SFTs of a contiguous strain array as a complex array of shape (n_bins, n_sft).
 
     The strain must start at the first SFT; a tail shorter than ``tsft`` is dropped.
     The first bin is round(fmin * tsft), i.e. frequency round(fmin * tsft) / tsft.
+    With ``prefiltered`` the strain was already high-passed as a whole (``highpass`` on
+    the chunk) and the segments are not filtered again.
     """
     f_highpass = fmin if f_highpass is None else f_highpass
     n = samples_per_sft(tsft, sample_rate)
@@ -59,9 +61,12 @@ def sft_matrix(strain, sample_rate, tsft, fmin, band, f_highpass=None, single_pr
     n_bins = int(round(band * tsft))
 
     segments = np.asarray(strain[: n_sft * n], dtype=np.float64).reshape(n_sft, n)
-    filtered = np.empty_like(segments)
-    for k in range(n_sft):
-        filtered[k] = highpass(segments[k], sample_rate, f_highpass)
+    if prefiltered:
+        filtered = segments
+    else:
+        filtered = np.empty_like(segments)
+        for k in range(n_sft):
+            filtered[k] = highpass(segments[k], sample_rate, f_highpass)
 
     sfts = np.fft.rfft(filtered, axis=1)[:, first_bin:first_bin + n_bins] / sample_rate
     if single_precision:

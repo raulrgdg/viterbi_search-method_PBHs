@@ -14,6 +14,15 @@ import numpy as np
 # --------------------------------------------------------------------------
 IFO = "H1"
 CHANNEL = "H1:GWOSC-4KHZ_R1_STRAIN"
+# Detectors of a search: H1 alone (default, the paper search) or H1 and L1 (maps summed, studies/multi_detector).
+DETECTORS = ("H1",)
+SUPPORTED_DETECTORS = ("H1", "L1")
+
+
+def channel_for(ifo):
+    """GWOSC strain channel of a detector."""
+    return f"{ifo}:GWOSC-4KHZ_R1_STRAIN"
+
 OBSERVING_RUN = "O3b"
 GWOSC_SAMPLE_RATE = 4096  # Hz, rate of the public GWOSC strain
 SAMPLE_RATE = 512  # Hz, rate after resampling (Table I)
@@ -56,6 +65,19 @@ TSFT_VALUES = TSFT_LISTS[DEFAULT_TSFT_LIST]
 # SFT generation: "fast" (in memory, pbh_viterbi.sft.fast) or "makesfts"
 # (lalpulsar_MakeSFTs, as in the paper; integer Tsft only, ~100x slower).
 SFT_METHOD = "fast"
+# High-pass of the in-memory SFTs: "segment" filters every SFT segment separately, as
+# lalpulsar_MakeSFTs (paper, v1.0-v1.2); "chunk" filters the whole chunk once.
+# With the rectangular window, the filter start transient of every segment leaks broadband power
+# into the band, raising the noise floor x1.5-17 above the PSD (studies/multi_detector).
+SFT_HIGHPASS = "segment"
+SFT_HIGHPASS_MODES = ("segment", "chunk")
+# Normalisation of the |SFT| map: "bin" divides every frequency bin by its median over the
+# chunk (paper, v1.0-v1.2); "bin+sft" then also divides every SFT by its
+# median over the band, which flattens broadband glitches (studies/multi_detector).
+# Every (detectors, high-pass, normalisation) combination has its own nsigma background
+# (paths.noise_background_path).
+MAP_NORMALISATION = "bin"
+MAP_NORMALISATION_MODES = ("bin", "bin+sft")
 SFT_WINDOW = "rectangular"
 MAKE_SFT_THREADS = 256  # parallel lalpulsar_MakeSFTs workers per Tsft (makesfts method only)
 

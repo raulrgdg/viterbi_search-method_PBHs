@@ -80,6 +80,31 @@ def inject_in_memory(m1, m2, distance, t_to_merger, ra, dec, pol, t_start, raw_s
     return coal_time, injected
 
 
+def inject_in_memory_network(m1, m2, distance, t_to_merger, ra, dec, pol, t_start, raw_segments_by_ifo,
+                             inc=INCLINATION, frame_length=FRAME_LENGTH):
+    """Inject one signal in several detectors: ``raw_segments_by_ifo`` is ``{ifo: segments}``.
+
+    hp and hc are generated once per frame and projected on each detector
+    (antenna pattern and arrival-time delay of ``Detector.project_wave``), so the
+    detectors see the same source. For one detector this equals ``inject_in_memory``.
+    Returns ``(coal_time, {ifo: segments})``.
+    """
+    from pycbc.detector import Detector
+
+    coal_time = int(t_start + t_to_merger)
+    first = next(iter(raw_segments_by_ifo.values()))
+    waveform = TaylorT3(m1=m1, m2=m2, distance=distance, inclination=inc,
+                        sampling_rate=1 / first[0].delta_t, coal_time=coal_time)
+    detectors = {ifo: Detector(ifo) for ifo in raw_segments_by_ifo}
+    injected = {ifo: [] for ifo in raw_segments_by_ifo}
+    for i in range(len(first)):
+        t0 = t_start + i * frame_length
+        hp, hc = waveform.tdstrain(t0, t0 + frame_length, PyCBC_TimeSeries=True)
+        for ifo, segments in raw_segments_by_ifo.items():
+            injected[ifo].append(segments[i].inject(detectors[ifo].project_wave(hp, hc, ra, dec, pol, method="lal")))
+    return coal_time, injected
+
+
 def inject_signal(m1, m2, distance, t_to_merger, ra, dec, pol, t_start, raw_segments, output_root,
                   inc=INCLINATION, ifo=IFO, channel=CHANNEL, frame_length=FRAME_LENGTH):
     """Add a TaylorT3 inspiral to each raw frame and write the result as GWF files.

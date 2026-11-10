@@ -29,7 +29,7 @@ import logging
 from pbh_viterbi.campaign import assignment_for_pack
 from pbh_viterbi.config import DEFAULT_SKY_SEED, INCLINATION, t_to_merger_for_mchirp
 from pbh_viterbi.jobs import split_for_job
-from pbh_viterbi.o3.frames import read_pack_frames, write_injected_framecache
+from pbh_viterbi.o3.frames import write_injected_framecache
 from pbh_viterbi.o3.packs import pack_window
 from pbh_viterbi.results import (
     PER_TSFT_FIELDNAMES,
@@ -44,12 +44,14 @@ from pbh_viterbi.results import (
 )
 from pbh_viterbi.search.candidates import per_tsft_candidates, search_candidate
 from pbh_viterbi.search.power import check_background, load_noise_background
-from pbh_viterbi.waveform.injection import build_signal_grid, inject_in_memory, inject_signal, sample_sky
+from pbh_viterbi.waveform.injection import (build_signal_grid, inject_in_memory, inject_in_memory_network,
+                                            inject_signal, sample_sky)
 from pbh_viterbi.workflows.common import (
     add_common_arguments,
     chunk_products,
     existing_pack_dir,
     new_parser,
+    read_detector_frames,
     resolve_tsft_and_background,
     setup_logging,
 )
@@ -77,6 +79,10 @@ def parse_args():
 
 def injected_products(args, m1, m2, distance, mchirp, t_to_merger, sky, t_start, t_end, raw_segments):
     """Track products of one injection with the selected SFT method."""
+    if args.sft_method == "fast" and isinstance(raw_segments, dict):
+        _, segments = inject_in_memory_network(m1, m2, distance, t_to_merger, sky["ra"], sky["dec"], sky["pol"],
+                                               t_start, raw_segments)
+        return chunk_products(args, segments, t_start, t_end, None)
     if args.sft_method == "fast":
         _, segments = inject_in_memory(m1, m2, distance, t_to_merger, sky["ra"], sky["dec"], sky["pol"],
                                        t_start, raw_segments)
@@ -106,8 +112,10 @@ def main():
     signal_ids = split_for_job(list(range(start, end)), args.n_jobs, args.job_id)
     name = csv_name(injected=True, pack=args.pack)
     output = shard_path(name, args.n_jobs, args.job_id)
-    log.info("Job %d/%d (%s SFTs, %d Tsft): %d signal(s) %s -> %s", args.job_id, args.n_jobs, args.sft_method,
-             len(args.tsft), len(signal_ids), f"[{signal_ids[0]}..{signal_ids[-1]}]" if signal_ids else "[]", output)
+    log.info("Job %d/%d (%s, %s SFTs, %s high-pass, %s normalisation, %d Tsft): %d signal(s) %s -> %s",
+             args.job_id, args.n_jobs, "+".join(args.detectors), args.sft_method, args.sft_highpass,
+             args.map_normalisation, len(args.tsft), len(signal_ids),
+             f"[{signal_ids[0]}..{signal_ids[-1]}]" if signal_ids else "[]", output)
     write_rows([], output)
     per_tsft_name = per_tsft_csv_name(injected=True, pack=args.pack)  # Tsft-selection study
     per_tsft_output = shard_path(per_tsft_name, args.n_jobs, args.job_id) if args.per_tsft_output else None
@@ -118,7 +126,7 @@ def main():
         noise_means, noise_stds = load_noise_background(args.noise_background)
         check_background(args.tsft, noise_means, args.noise_background)
         t_start, t_end = pack_window(args.pack)
-        raw_segments = read_pack_frames(existing_pack_dir(args.pack, args.o3_dir), t_start)
+        raw_segments = read_detector_frames(existing_pack_dir(args.pack, args.o3_dir), t_start, args.detectors)
 
         for count, signal_id in enumerate(signal_ids, start=1):
             m1, m2, distance = grid[signal_id]
