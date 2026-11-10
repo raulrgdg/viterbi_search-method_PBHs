@@ -64,6 +64,20 @@ def test_chunk_highpass_filters_the_strain_once():
             == "noise_background_tsft95_H1L1_chunkhp.csv")
 
 
+def test_signal_list(tmp_path):
+    from pbh_viterbi.workflows.injected_search import read_signal_list
+
+    path = tmp_path / "signals.csv"
+    path.write_text("signal_id,mchirp,distance\n1000,0.1,0.2\n1001,0.0004,0.001\n")
+    signals = read_signal_list(path)
+    assert sorted(signals) == [1000, 1001]
+    m1, m2, d = signals[1000]
+    assert m1 == m2 and d == 0.2
+    from pycbc.conversions import mchirp_from_mass1_mass2
+
+    assert abs(mchirp_from_mass1_mass2(m1, m2) - 0.1) < 1e-9
+
+
 def test_sft_normalisation_flattens_a_broadband_glitch_and_keeps_a_line():
     from pbh_viterbi.sft.maps import normalized_power
 
@@ -105,6 +119,30 @@ def test_non_finite_strain_is_an_error():
     for mode in ("bin", "bin+sft"):
         with pytest.raises(ValueError, match="non-finite"):
             normalized_power(sft, mode)
+
+
+def test_signal_ids_must_be_in_the_signal_list(tmp_path, monkeypatch):
+    from pbh_viterbi.workflows import injected_search
+
+    path = tmp_path / "signals.csv"
+    path.write_text("signal_id,mchirp,distance\n1000,0.1,0.2\n")
+    for extra, message in ((["--signal-ids", "1000,1001"], "not in --signal-list"),
+                           (["--signal-ids", ","], "empty"),
+                           (["--signal-ids", "a"], "integers"),
+                           (["--signals", "0:1"], "cannot be combined")):
+        monkeypatch.setattr("sys.argv", ["injected_search", "--pack", "3", "--signal-list", str(path), *extra,
+                                         "--noise-background", str(noise_background_path("95", ["H1"], "segment", "bin"))])
+        with pytest.raises(ValueError, match=message):
+            injected_search.main()
+
+
+def test_duplicate_signal_id_is_an_error(tmp_path):
+    from pbh_viterbi.workflows.injected_search import read_signal_list
+
+    path = tmp_path / "signals.csv"
+    path.write_text("signal_id,mchirp,distance\n1000,0.1,0.2\n1000,0.01,0.1\n")
+    with pytest.raises(ValueError, match="twice"):
+        read_signal_list(path)
 
 
 def test_makesfts_needs_the_segment_highpass_and_a_background_must_exist(tmp_path):

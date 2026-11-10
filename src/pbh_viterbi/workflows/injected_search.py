@@ -17,6 +17,9 @@ are written to the output with the other injection parameters, so the optimal
 SNR of every injection can be computed afterwards (analysis/injection_snr.py).
 With --sky RA DEC POL every signal uses that fixed sky position instead.
 
+--signal-ids picks some signals of the grid, and --signal-list replaces the grid by a CSV
+of signals (signal_id, mchirp, distance), e.g. studies/multi_detector/quick_signals.csv.
+
 Output: results/search/search_results_injected_pack-<pack>.csv
 
 Examples:
@@ -25,6 +28,7 @@ Examples:
 """
 
 import logging
+from pathlib import Path
 
 from pbh_viterbi.campaign import assignment_for_pack
 from pbh_viterbi.config import DEFAULT_SKY_SEED, INCLINATION, t_to_merger_for_mchirp
@@ -44,8 +48,8 @@ from pbh_viterbi.results import (
 )
 from pbh_viterbi.search.candidates import per_tsft_candidates, search_candidate
 from pbh_viterbi.search.power import check_background, load_noise_background
-from pbh_viterbi.waveform.injection import (build_signal_grid, inject_in_memory, inject_in_memory_network,
-                                            inject_signal, sample_sky)
+from pbh_viterbi.waveform.injection import (build_signal_grid, equal_component_masses, inject_in_memory,
+                                            inject_in_memory_network, inject_signal, sample_sky)
 from pbh_viterbi.workflows.common import (
     add_common_arguments,
     chunk_products,
@@ -57,6 +61,34 @@ from pbh_viterbi.workflows.common import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def read_signal_list(path):
+    """``{signal_id: (m1, m2, distance)}`` from a CSV with signal_id, mchirp and distance (Mpc)."""
+    import csv
+
+    signals = {}
+    with open(path, newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            signal_id = int(row["signal_id"])
+            if signal_id in signals:
+                raise ValueError(f"Signal id {signal_id} appears twice in {path}")
+            m1, m2 = equal_component_masses(float(row["mchirp"]))
+            signals[signal_id] = (m1, m2, float(row["distance"]))
+    if not signals:
+        raise ValueError(f"No signals in {path}")
+    return signals
+
+
+def parse_signal_ids(text):
+    """Sorted unique signal ids of a comma-separated list; an empty or malformed list is an error."""
+    try:
+        ids = sorted({int(v) for v in text.split(",") if v.strip()})
+    except ValueError as exc:
+        raise ValueError(f"--signal-ids must be comma-separated integers, got {text!r}") from exc
+    if not ids:
+        raise ValueError(f"--signal-ids is empty: {text!r}")
+    return ids
 
 
 def parse_signal_range(text, n_signals):
@@ -71,6 +103,12 @@ def parse_args():
     parser.add_argument("--pack", type=int, required=True, help="O3b pack to inject into.")
     parser.add_argument("--signals", help="Signal index range START:END of the population grid "
                                           "(default: the campaign slice of the pack).")
+    parser.add_argument("--signal-list", type=Path,
+                        help="CSV with columns signal_id, mchirp (Msun), distance (Mpc): signals outside the "
+                             "population grid (equal masses, t_to_merger of the chirp mass). The sky comes from "
+                             "(sky seed, pack, signal_id); use ids >= 1000 to keep them apart from the grid.")
+    parser.add_argument("--signal-ids", help="Comma-separated signal indices of the population grid "
+                                             "(overrides --signals), e.g. 218,219,250.")
     parser.add_argument("--sky-seed", type=int, default=DEFAULT_SKY_SEED)
     parser.add_argument("--sky", type=float, nargs=3, metavar=("RA", "DEC", "POL"),
                         help="Fixed sky position and polarisation (rad) for every signal.")
@@ -101,15 +139,32 @@ def main():
     setup_logging(args.verbose)
     from pycbc.conversions import mchirp_from_mass1_mass2
 
+    if args.signals and (args.signal_list or args.signal_ids):
+        raise ValueError("--signals cannot be combined with --signal-list or --signal-ids")
     grid = build_signal_grid()
-    if args.signals:
+    if args.signal_list:
+        grid = read_signal_list(args.signal_list)
+        chosen = sorted(grid)
+        if args.signal_ids:
+            wanted = parse_signal_ids(args.signal_ids)
+            missing = sorted(set(wanted) - set(grid))
+            if missing:
+                raise ValueError(f"--signal-ids {missing} are not in --signal-list {args.signal_list}")
+            chosen = wanted
+    elif args.signal_ids:
+        chosen = parse_signal_ids(args.signal_ids)
+        if chosen[0] < 0 or chosen[-1] >= len(grid):
+            raise ValueError(f"--signal-ids must be in [0, {len(grid)}) for the population grid")
+    elif args.signals:
         start, end = parse_signal_range(args.signals, len(grid))
     else:
         assignment = assignment_for_pack(args.pack)
         start, end = assignment.signal_start, assignment.signal_end
         log.info("Pack %d: campaign signals [%d, %d)", args.pack, start, end)
 
-    signal_ids = split_for_job(list(range(start, end)), args.n_jobs, args.job_id)
+    if not (args.signal_list or args.signal_ids):
+        chosen = list(range(start, end))
+    signal_ids = split_for_job(chosen, args.n_jobs, args.job_id)
     name = csv_name(injected=True, pack=args.pack)
     output = shard_path(name, args.n_jobs, args.job_id)
     log.info("Job %d/%d (%s, %s SFTs, %s high-pass, %s normalisation, %d Tsft): %d signal(s) %s -> %s",
